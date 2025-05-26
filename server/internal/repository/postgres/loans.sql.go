@@ -9,7 +9,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/govalues/decimal"
 )
 
 const checkLoanEligibility = `-- name: CheckLoanEligibility :one
@@ -25,17 +25,17 @@ WHERE b.id = $2 AND r.id = $1
 `
 
 type CheckLoanEligibilityParams struct {
-	ReaderID int32 `json:"reader_id"`
-	BookID   int32 `json:"book_id"`
+	ReaderID int `json:"reader_id"`
+	BookID   int `json:"book_id"`
 }
 
 type CheckLoanEligibilityRow struct {
-	BookAvailable   bool           `json:"book_available"`
-	CurrentLoans    int64          `json:"current_loans"`
-	MaxBooksAllowed pgtype.Int4    `json:"max_books_allowed"`
-	ReaderStatus    pgtype.Text    `json:"reader_status"`
-	TotalDebt       pgtype.Numeric `json:"total_debt"`
-	QueueLength     int64          `json:"queue_length"`
+	BookAvailable   bool            `json:"book_available"`
+	CurrentLoans    int64           `json:"current_loans"`
+	MaxBooksAllowed int             `json:"max_books_allowed"`
+	ReaderStatus    string          `json:"reader_status"`
+	TotalDebt       decimal.Decimal `json:"total_debt"`
+	QueueLength     int64           `json:"queue_length"`
 }
 
 func (q *Queries) CheckLoanEligibility(ctx context.Context, arg CheckLoanEligibilityParams) (*CheckLoanEligibilityRow, error) {
@@ -62,9 +62,9 @@ INSERT INTO loan_history (
 `
 
 type CreateLoanParams struct {
-	BookID      int32 `json:"book_id"`
-	ReaderID    int32 `json:"reader_id"`
-	LibrarianID int32 `json:"librarian_id"`
+	BookID      int `json:"book_id"`
+	ReaderID    int `json:"reader_id"`
+	LibrarianID int `json:"librarian_id"`
 }
 
 func (q *Queries) CreateLoan(ctx context.Context, arg CreateLoanParams) (*LoanHistory, error) {
@@ -99,11 +99,11 @@ INSERT INTO renewals (
 `
 
 type CreateRenewalParams struct {
-	LoanHistoryID int32       `json:"loan_history_id"`
-	OldDueDate    time.Time   `json:"old_due_date"`
-	NewDueDate    time.Time   `json:"new_due_date"`
-	LibrarianID   int32       `json:"librarian_id"`
-	Reason        pgtype.Text `json:"reason"`
+	LoanHistoryID int       `json:"loan_history_id"`
+	OldDueDate    time.Time `json:"old_due_date"`
+	NewDueDate    time.Time `json:"new_due_date"`
+	LibrarianID   int       `json:"librarian_id"`
+	Reason        *string   `json:"reason"`
 }
 
 func (q *Queries) CreateRenewal(ctx context.Context, arg CreateRenewalParams) error {
@@ -132,21 +132,21 @@ ORDER BY lh.loan_date DESC
 `
 
 type GetActiveLoansByBookRow struct {
-	ID            int32       `json:"id"`
-	ReaderName    string      `json:"reader_name"`
-	TicketNumber  string      `json:"ticket_number"`
-	LoanDate      time.Time   `json:"loan_date"`
-	DueDate       time.Time   `json:"due_date"`
-	RenewalsCount pgtype.Int4 `json:"renewals_count"`
+	ID            int64     `json:"id"`
+	ReaderName    string    `json:"reader_name"`
+	TicketNumber  string    `json:"ticket_number"`
+	LoanDate      time.Time `json:"loan_date"`
+	DueDate       time.Time `json:"due_date"`
+	RenewalsCount int       `json:"renewals_count"`
 }
 
-func (q *Queries) GetActiveLoansByBook(ctx context.Context, bookID int32) ([]*GetActiveLoansByBookRow, error) {
+func (q *Queries) GetActiveLoansByBook(ctx context.Context, bookID int) ([]*GetActiveLoansByBookRow, error) {
 	rows, err := q.db.Query(ctx, getActiveLoansByBook, bookID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetActiveLoansByBookRow
+	items := []*GetActiveLoansByBookRow{}
 	for rows.Next() {
 		var i GetActiveLoansByBookRow
 		if err := rows.Scan(
@@ -183,12 +183,12 @@ ORDER BY r.full_name
 `
 
 type GetBooksDueTodayRow struct {
-	Title         string      `json:"title"`
-	Author        string      `json:"author"`
-	ReaderName    string      `json:"reader_name"`
-	Phone         pgtype.Text `json:"phone"`
-	LoanDate      time.Time   `json:"loan_date"`
-	RenewalsCount pgtype.Int4 `json:"renewals_count"`
+	Title         string    `json:"title"`
+	Author        string    `json:"author"`
+	ReaderName    string    `json:"reader_name"`
+	Phone         *string   `json:"phone"`
+	LoanDate      time.Time `json:"loan_date"`
+	RenewalsCount int       `json:"renewals_count"`
 }
 
 func (q *Queries) GetBooksDueToday(ctx context.Context) ([]*GetBooksDueTodayRow, error) {
@@ -197,7 +197,7 @@ func (q *Queries) GetBooksDueToday(ctx context.Context) ([]*GetBooksDueTodayRow,
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetBooksDueTodayRow
+	items := []*GetBooksDueTodayRow{}
 	for rows.Next() {
 		var i GetBooksDueTodayRow
 		if err := rows.Scan(
@@ -227,27 +227,27 @@ WHERE lh.id = $1
 `
 
 type GetLoanByIDRow struct {
-	ID                int32            `json:"id"`
-	BookID            int32            `json:"book_id"`
-	ReaderID          int32            `json:"reader_id"`
-	LibrarianID       int32            `json:"librarian_id"`
-	LoanDate          time.Time        `json:"loan_date"`
-	DueDate           time.Time        `json:"due_date"`
-	ReturnDate        pgtype.Date      `json:"return_date"`
-	RenewalsCount     pgtype.Int4      `json:"renewals_count"`
-	Status            pgtype.Text      `json:"status"`
-	FineAmount        pgtype.Numeric   `json:"fine_amount"`
-	FinePaid          pgtype.Bool      `json:"fine_paid"`
-	Comments          pgtype.Text      `json:"comments"`
-	ReturnLibrarianID pgtype.Int4      `json:"return_librarian_id"`
-	CreatedAt         pgtype.Timestamp `json:"created_at"`
-	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
-	Title             string           `json:"title"`
-	Author            string           `json:"author"`
-	ReaderName        string           `json:"reader_name"`
+	ID                int64           `json:"id"`
+	BookID            int             `json:"book_id"`
+	ReaderID          int             `json:"reader_id"`
+	LibrarianID       int             `json:"librarian_id"`
+	LoanDate          time.Time       `json:"loan_date"`
+	DueDate           time.Time       `json:"due_date"`
+	ReturnDate        *time.Time      `json:"return_date"`
+	RenewalsCount     int             `json:"renewals_count"`
+	Status            string          `json:"status"`
+	FineAmount        decimal.Decimal `json:"fine_amount"`
+	FinePaid          bool            `json:"fine_paid"`
+	Comments          *string         `json:"comments"`
+	ReturnLibrarianID *int            `json:"return_librarian_id"`
+	CreatedAt         time.Time       `json:"created_at"`
+	UpdatedAt         time.Time       `json:"updated_at"`
+	Title             string          `json:"title"`
+	Author            string          `json:"author"`
+	ReaderName        string          `json:"reader_name"`
 }
 
-func (q *Queries) GetLoanByID(ctx context.Context, loanID int32) (*GetLoanByIDRow, error) {
+func (q *Queries) GetLoanByID(ctx context.Context, loanID int64) (*GetLoanByIDRow, error) {
 	row := q.db.QueryRow(ctx, getLoanByID, loanID)
 	var i GetLoanByIDRow
 	err := row.Scan(
@@ -300,18 +300,18 @@ LIMIT $1
 `
 
 type GetOverdueBooksRow struct {
-	ID           int32       `json:"id"`
-	Title        string      `json:"title"`
-	Author       string      `json:"author"`
-	BookCode     string      `json:"book_code"`
-	ReaderName   string      `json:"reader_name"`
-	TicketNumber string      `json:"ticket_number"`
-	Phone        pgtype.Text `json:"phone"`
-	Email        pgtype.Text `json:"email"`
-	LoanDate     time.Time   `json:"loan_date"`
-	DueDate      time.Time   `json:"due_date"`
-	DaysOverdue  int32       `json:"days_overdue"`
-	OverdueLevel string      `json:"overdue_level"`
+	ID           int64     `json:"id"`
+	Title        string    `json:"title"`
+	Author       string    `json:"author"`
+	BookCode     string    `json:"book_code"`
+	ReaderName   string    `json:"reader_name"`
+	TicketNumber string    `json:"ticket_number"`
+	Phone        *string   `json:"phone"`
+	Email        *string   `json:"email"`
+	LoanDate     time.Time `json:"loan_date"`
+	DueDate      time.Time `json:"due_date"`
+	DaysOverdue  int       `json:"days_overdue"`
+	OverdueLevel string    `json:"overdue_level"`
 }
 
 func (q *Queries) GetOverdueBooks(ctx context.Context, resultLimit int32) ([]*GetOverdueBooksRow, error) {
@@ -320,7 +320,7 @@ func (q *Queries) GetOverdueBooks(ctx context.Context, resultLimit int32) ([]*Ge
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetOverdueBooksRow
+	items := []*GetOverdueBooksRow{}
 	for rows.Next() {
 		var i GetOverdueBooksRow
 		if err := rows.Scan(
@@ -359,23 +359,23 @@ ORDER BY lh.due_date
 `
 
 type GetReaderCurrentLoansRow struct {
-	Title         string      `json:"title"`
-	Author        string      `json:"author"`
-	BookCode      string      `json:"book_code"`
-	LoanDate      time.Time   `json:"loan_date"`
-	DueDate       time.Time   `json:"due_date"`
-	RenewalsCount pgtype.Int4 `json:"renewals_count"`
-	DaysOverdue   int32       `json:"days_overdue"`
-	StatusText    string      `json:"status_text"`
+	Title         string    `json:"title"`
+	Author        string    `json:"author"`
+	BookCode      string    `json:"book_code"`
+	LoanDate      time.Time `json:"loan_date"`
+	DueDate       time.Time `json:"due_date"`
+	RenewalsCount int       `json:"renewals_count"`
+	DaysOverdue   int       `json:"days_overdue"`
+	StatusText    string    `json:"status_text"`
 }
 
-func (q *Queries) GetReaderCurrentLoans(ctx context.Context, readerID int32) ([]*GetReaderCurrentLoansRow, error) {
+func (q *Queries) GetReaderCurrentLoans(ctx context.Context, readerID int) ([]*GetReaderCurrentLoansRow, error) {
 	rows, err := q.db.Query(ctx, getReaderCurrentLoans, readerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetReaderCurrentLoansRow
+	items := []*GetReaderCurrentLoansRow{}
 	for rows.Next() {
 		var i GetReaderCurrentLoansRow
 		if err := rows.Scan(
@@ -412,20 +412,20 @@ LIMIT $3 OFFSET $2
 `
 
 type GetReaderLoanHistoryParams struct {
-	ReaderID   int32 `json:"reader_id"`
+	ReaderID   int   `json:"reader_id"`
 	PageOffset int32 `json:"page_offset"`
 	PageLimit  int32 `json:"page_limit"`
 }
 
 type GetReaderLoanHistoryRow struct {
-	Title         string      `json:"title"`
-	Author        string      `json:"author"`
-	LoanDate      time.Time   `json:"loan_date"`
-	ReturnDate    pgtype.Date `json:"return_date"`
-	DueDate       time.Time   `json:"due_date"`
-	Status        pgtype.Text `json:"status"`
-	RenewalsCount pgtype.Int4 `json:"renewals_count"`
-	OverdueDays   int32       `json:"overdue_days"`
+	Title         string     `json:"title"`
+	Author        string     `json:"author"`
+	LoanDate      time.Time  `json:"loan_date"`
+	ReturnDate    *time.Time `json:"return_date"`
+	DueDate       time.Time  `json:"due_date"`
+	Status        string     `json:"status"`
+	RenewalsCount int        `json:"renewals_count"`
+	OverdueDays   int32      `json:"overdue_days"`
 }
 
 func (q *Queries) GetReaderLoanHistory(ctx context.Context, arg GetReaderLoanHistoryParams) ([]*GetReaderLoanHistoryRow, error) {
@@ -434,7 +434,7 @@ func (q *Queries) GetReaderLoanHistory(ctx context.Context, arg GetReaderLoanHis
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetReaderLoanHistoryRow
+	items := []*GetReaderLoanHistoryRow{}
 	for rows.Next() {
 		var i GetReaderLoanHistoryRow
 		if err := rows.Scan(
@@ -465,7 +465,7 @@ SET
 WHERE id = $1
 `
 
-func (q *Queries) MarkLoanAsLost(ctx context.Context, id int32) error {
+func (q *Queries) MarkLoanAsLost(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, markLoanAsLost, id)
 	return err
 }
@@ -478,7 +478,7 @@ SET due_date = due_date + INTERVAL '@extension_days days',
 WHERE id = $1 AND status = 'active'
 `
 
-func (q *Queries) RenewLoan(ctx context.Context, loanID int32) error {
+func (q *Queries) RenewLoan(ctx context.Context, loanID int64) error {
 	_, err := q.db.Exec(ctx, renewLoan, loanID)
 	return err
 }
@@ -493,8 +493,8 @@ WHERE id = $2 AND status = 'active'
 `
 
 type ReturnBookParams struct {
-	LibrarianID pgtype.Int4 `json:"librarian_id"`
-	LoanID      int32       `json:"loan_id"`
+	LibrarianID *int  `json:"librarian_id"`
+	LoanID      int64 `json:"loan_id"`
 }
 
 func (q *Queries) ReturnBook(ctx context.Context, arg ReturnBookParams) error {

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/govalues/decimal"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createReader = `-- name: CreateReader :one
@@ -24,13 +23,13 @@ INSERT INTO readers (
 `
 
 type CreateReaderParams struct {
-	FullName     string      `json:"full_name"`
-	TicketNumber string      `json:"ticket_number"`
-	BirthDate    time.Time   `json:"birth_date"`
-	Phone        pgtype.Text `json:"phone"`
-	Email        pgtype.Text `json:"email"`
-	Education    pgtype.Text `json:"education"`
-	HallID       int32       `json:"hall_id"`
+	FullName     string    `json:"full_name"`
+	TicketNumber string    `json:"ticket_number"`
+	BirthDate    time.Time `json:"birth_date"`
+	Phone        *string   `json:"phone"`
+	Email        *string   `json:"email"`
+	Education    *string   `json:"education"`
+	HallID       int       `json:"hall_id"`
 }
 
 func (q *Queries) CreateReader(ctx context.Context, arg CreateReaderParams) (*Reader, error) {
@@ -96,7 +95,7 @@ func (q *Queries) GetActiveReaders(ctx context.Context, resultLimit int32) ([]*G
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetActiveReadersRow
+	items := []*GetActiveReadersRow{}
 	for rows.Next() {
 		var i GetActiveReadersRow
 		if err := rows.Scan(
@@ -131,26 +130,26 @@ type GetAllReadersParams struct {
 }
 
 type GetAllReadersRow struct {
-	ID                 int32            `json:"id"`
-	FullName           string           `json:"full_name"`
-	TicketNumber       string           `json:"ticket_number"`
-	BirthDate          time.Time        `json:"birth_date"`
-	Phone              pgtype.Text      `json:"phone"`
-	Email              pgtype.Text      `json:"email"`
-	Education          pgtype.Text      `json:"education"`
-	HallID             int32            `json:"hall_id"`
-	MaxBooksAllowed    pgtype.Int4      `json:"max_books_allowed"`
-	MaxRenewalsAllowed pgtype.Int4      `json:"max_renewals_allowed"`
-	TotalDebt          pgtype.Numeric   `json:"total_debt"`
-	Status             pgtype.Text      `json:"status"`
-	ReaderRating       pgtype.Int4      `json:"reader_rating"`
-	RegistrationDate   pgtype.Date      `json:"registration_date"`
-	LastActivityDate   pgtype.Date      `json:"last_activity_date"`
-	CreatedAt          pgtype.Timestamp `json:"created_at"`
-	UpdatedAt          pgtype.Timestamp `json:"updated_at"`
-	HallName           string           `json:"hall_name"`
-	Specialization     string           `json:"specialization"`
-	CurrentLoans       int64            `json:"current_loans"`
+	ID                 int64           `json:"id"`
+	FullName           string          `json:"full_name"`
+	TicketNumber       string          `json:"ticket_number"`
+	BirthDate          time.Time       `json:"birth_date"`
+	Phone              *string         `json:"phone"`
+	Email              *string         `json:"email"`
+	Education          *string         `json:"education"`
+	HallID             int             `json:"hall_id"`
+	MaxBooksAllowed    int             `json:"max_books_allowed"`
+	MaxRenewalsAllowed int             `json:"max_renewals_allowed"`
+	TotalDebt          decimal.Decimal `json:"total_debt"`
+	Status             string          `json:"status"`
+	ReaderRating       int             `json:"reader_rating"`
+	RegistrationDate   time.Time       `json:"registration_date"`
+	LastActivityDate   *time.Time      `json:"last_activity_date"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+	HallName           string          `json:"hall_name"`
+	Specialization     string          `json:"specialization"`
+	CurrentLoans       int64           `json:"current_loans"`
 }
 
 func (q *Queries) GetAllReaders(ctx context.Context, arg GetAllReadersParams) ([]*GetAllReadersRow, error) {
@@ -159,7 +158,7 @@ func (q *Queries) GetAllReaders(ctx context.Context, arg GetAllReadersParams) ([
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetAllReadersRow
+	items := []*GetAllReadersRow{}
 	for rows.Next() {
 		var i GetAllReadersRow
 		if err := rows.Scan(
@@ -202,28 +201,28 @@ WHERE r.id = $1
 `
 
 type GetReaderByIDRow struct {
-	ID                 int32            `json:"id"`
-	FullName           string           `json:"full_name"`
-	TicketNumber       string           `json:"ticket_number"`
-	BirthDate          time.Time        `json:"birth_date"`
-	Phone              pgtype.Text      `json:"phone"`
-	Email              pgtype.Text      `json:"email"`
-	Education          pgtype.Text      `json:"education"`
-	HallID             int32            `json:"hall_id"`
-	MaxBooksAllowed    pgtype.Int4      `json:"max_books_allowed"`
-	MaxRenewalsAllowed pgtype.Int4      `json:"max_renewals_allowed"`
-	TotalDebt          pgtype.Numeric   `json:"total_debt"`
-	Status             pgtype.Text      `json:"status"`
-	ReaderRating       pgtype.Int4      `json:"reader_rating"`
-	RegistrationDate   pgtype.Date      `json:"registration_date"`
-	LastActivityDate   pgtype.Date      `json:"last_activity_date"`
-	CreatedAt          pgtype.Timestamp `json:"created_at"`
-	UpdatedAt          pgtype.Timestamp `json:"updated_at"`
-	HallName           string           `json:"hall_name"`
-	Specialization     string           `json:"specialization"`
+	ID                 int64           `json:"id"`
+	FullName           string          `json:"full_name"`
+	TicketNumber       string          `json:"ticket_number"`
+	BirthDate          time.Time       `json:"birth_date"`
+	Phone              *string         `json:"phone"`
+	Email              *string         `json:"email"`
+	Education          *string         `json:"education"`
+	HallID             int             `json:"hall_id"`
+	MaxBooksAllowed    int             `json:"max_books_allowed"`
+	MaxRenewalsAllowed int             `json:"max_renewals_allowed"`
+	TotalDebt          decimal.Decimal `json:"total_debt"`
+	Status             string          `json:"status"`
+	ReaderRating       int             `json:"reader_rating"`
+	RegistrationDate   time.Time       `json:"registration_date"`
+	LastActivityDate   *time.Time      `json:"last_activity_date"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+	HallName           string          `json:"hall_name"`
+	Specialization     string          `json:"specialization"`
 }
 
-func (q *Queries) GetReaderByID(ctx context.Context, readerID int32) (*GetReaderByIDRow, error) {
+func (q *Queries) GetReaderByID(ctx context.Context, readerID int64) (*GetReaderByIDRow, error) {
 	row := q.db.QueryRow(ctx, getReaderByID, readerID)
 	var i GetReaderByIDRow
 	err := row.Scan(
@@ -258,25 +257,25 @@ WHERE r.ticket_number = $1
 `
 
 type GetReaderByTicketRow struct {
-	ID                 int32            `json:"id"`
-	FullName           string           `json:"full_name"`
-	TicketNumber       string           `json:"ticket_number"`
-	BirthDate          time.Time        `json:"birth_date"`
-	Phone              pgtype.Text      `json:"phone"`
-	Email              pgtype.Text      `json:"email"`
-	Education          pgtype.Text      `json:"education"`
-	HallID             int32            `json:"hall_id"`
-	MaxBooksAllowed    pgtype.Int4      `json:"max_books_allowed"`
-	MaxRenewalsAllowed pgtype.Int4      `json:"max_renewals_allowed"`
-	TotalDebt          pgtype.Numeric   `json:"total_debt"`
-	Status             pgtype.Text      `json:"status"`
-	ReaderRating       pgtype.Int4      `json:"reader_rating"`
-	RegistrationDate   pgtype.Date      `json:"registration_date"`
-	LastActivityDate   pgtype.Date      `json:"last_activity_date"`
-	CreatedAt          pgtype.Timestamp `json:"created_at"`
-	UpdatedAt          pgtype.Timestamp `json:"updated_at"`
-	HallName           string           `json:"hall_name"`
-	Specialization     string           `json:"specialization"`
+	ID                 int64           `json:"id"`
+	FullName           string          `json:"full_name"`
+	TicketNumber       string          `json:"ticket_number"`
+	BirthDate          time.Time       `json:"birth_date"`
+	Phone              *string         `json:"phone"`
+	Email              *string         `json:"email"`
+	Education          *string         `json:"education"`
+	HallID             int             `json:"hall_id"`
+	MaxBooksAllowed    int             `json:"max_books_allowed"`
+	MaxRenewalsAllowed int             `json:"max_renewals_allowed"`
+	TotalDebt          decimal.Decimal `json:"total_debt"`
+	Status             string          `json:"status"`
+	ReaderRating       int             `json:"reader_rating"`
+	RegistrationDate   time.Time       `json:"registration_date"`
+	LastActivityDate   *time.Time      `json:"last_activity_date"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+	HallName           string          `json:"hall_name"`
+	Specialization     string          `json:"specialization"`
 }
 
 func (q *Queries) GetReaderByTicket(ctx context.Context, ticketNumber string) (*GetReaderByTicketRow, error) {
@@ -324,13 +323,13 @@ type GetReaderFavoriteCategoriesRow struct {
 	Percentage   decimal.Decimal `json:"percentage"`
 }
 
-func (q *Queries) GetReaderFavoriteCategories(ctx context.Context, readerID int32) ([]*GetReaderFavoriteCategoriesRow, error) {
+func (q *Queries) GetReaderFavoriteCategories(ctx context.Context, readerID int) ([]*GetReaderFavoriteCategoriesRow, error) {
 	rows, err := q.db.Query(ctx, getReaderFavoriteCategories, readerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetReaderFavoriteCategoriesRow
+	items := []*GetReaderFavoriteCategoriesRow{}
 	for rows.Next() {
 		var i GetReaderFavoriteCategoriesRow
 		if err := rows.Scan(&i.CategoryName, &i.BooksCount, &i.Percentage); err != nil {
@@ -375,7 +374,7 @@ type GetReaderStatisticsRow struct {
 	LastActivity    interface{}     `json:"last_activity"`
 }
 
-func (q *Queries) GetReaderStatistics(ctx context.Context, readerID int32) (*GetReaderStatisticsRow, error) {
+func (q *Queries) GetReaderStatistics(ctx context.Context, readerID int64) (*GetReaderStatisticsRow, error) {
 	row := q.db.QueryRow(ctx, getReaderStatistics, readerID)
 	var i GetReaderStatisticsRow
 	err := row.Scan(
@@ -413,30 +412,30 @@ LIMIT $3 OFFSET $2
 `
 
 type SearchReadersByNameParams struct {
-	SearchName pgtype.Text `json:"search_name"`
-	PageOffset int32       `json:"page_offset"`
-	PageLimit  int32       `json:"page_limit"`
+	SearchName *string `json:"search_name"`
+	PageOffset int32   `json:"page_offset"`
+	PageLimit  int32   `json:"page_limit"`
 }
 
 type SearchReadersByNameRow struct {
-	ID                 int32            `json:"id"`
-	FullName           string           `json:"full_name"`
-	TicketNumber       string           `json:"ticket_number"`
-	BirthDate          time.Time        `json:"birth_date"`
-	Phone              pgtype.Text      `json:"phone"`
-	Email              pgtype.Text      `json:"email"`
-	Education          pgtype.Text      `json:"education"`
-	HallID             int32            `json:"hall_id"`
-	MaxBooksAllowed    pgtype.Int4      `json:"max_books_allowed"`
-	MaxRenewalsAllowed pgtype.Int4      `json:"max_renewals_allowed"`
-	TotalDebt          pgtype.Numeric   `json:"total_debt"`
-	Status             pgtype.Text      `json:"status"`
-	ReaderRating       pgtype.Int4      `json:"reader_rating"`
-	RegistrationDate   pgtype.Date      `json:"registration_date"`
-	LastActivityDate   pgtype.Date      `json:"last_activity_date"`
-	CreatedAt          pgtype.Timestamp `json:"created_at"`
-	UpdatedAt          pgtype.Timestamp `json:"updated_at"`
-	HallName           string           `json:"hall_name"`
+	ID                 int64           `json:"id"`
+	FullName           string          `json:"full_name"`
+	TicketNumber       string          `json:"ticket_number"`
+	BirthDate          time.Time       `json:"birth_date"`
+	Phone              *string         `json:"phone"`
+	Email              *string         `json:"email"`
+	Education          *string         `json:"education"`
+	HallID             int             `json:"hall_id"`
+	MaxBooksAllowed    int             `json:"max_books_allowed"`
+	MaxRenewalsAllowed int             `json:"max_renewals_allowed"`
+	TotalDebt          decimal.Decimal `json:"total_debt"`
+	Status             string          `json:"status"`
+	ReaderRating       int             `json:"reader_rating"`
+	RegistrationDate   time.Time       `json:"registration_date"`
+	LastActivityDate   *time.Time      `json:"last_activity_date"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+	HallName           string          `json:"hall_name"`
 }
 
 func (q *Queries) SearchReadersByName(ctx context.Context, arg SearchReadersByNameParams) ([]*SearchReadersByNameRow, error) {
@@ -445,7 +444,7 @@ func (q *Queries) SearchReadersByName(ctx context.Context, arg SearchReadersByNa
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*SearchReadersByNameRow
+	items := []*SearchReadersByNameRow{}
 	for rows.Next() {
 		var i SearchReadersByNameRow
 		if err := rows.Scan(
@@ -491,12 +490,12 @@ RETURNING id, full_name, ticket_number, birth_date, phone, email, education, hal
 `
 
 type UpdateReaderParams struct {
-	FullName  string      `json:"full_name"`
-	Phone     pgtype.Text `json:"phone"`
-	Email     pgtype.Text `json:"email"`
-	Education pgtype.Text `json:"education"`
-	HallID    int32       `json:"hall_id"`
-	ReaderID  int32       `json:"reader_id"`
+	FullName  string  `json:"full_name"`
+	Phone     *string `json:"phone"`
+	Email     *string `json:"email"`
+	Education *string `json:"education"`
+	HallID    int     `json:"hall_id"`
+	ReaderID  int64   `json:"reader_id"`
 }
 
 func (q *Queries) UpdateReader(ctx context.Context, arg UpdateReaderParams) (*Reader, error) {
@@ -542,7 +541,7 @@ updated_at = NOW()
 WHERE r.id = $1
 `
 
-func (q *Queries) UpdateReaderDebt(ctx context.Context, readerID int32) error {
+func (q *Queries) UpdateReaderDebt(ctx context.Context, readerID int64) error {
 	_, err := q.db.Exec(ctx, updateReaderDebt, readerID)
 	return err
 }
@@ -554,8 +553,8 @@ WHERE id = $2
 `
 
 type UpdateReaderStatusParams struct {
-	Status   pgtype.Text `json:"status"`
-	ReaderID int32       `json:"reader_id"`
+	Status   string `json:"status"`
+	ReaderID int64  `json:"reader_id"`
 }
 
 func (q *Queries) UpdateReaderStatus(ctx context.Context, arg UpdateReaderStatusParams) error {

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/govalues/decimal"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createDailyStatistics = `-- name: CreateDailyStatistics :exec
@@ -137,13 +136,13 @@ ORDER BY
 `
 
 type GetInventoryReportRow struct {
-	Hall                 string      `json:"hall"`
-	Category             pgtype.Text `json:"category"`
-	BookCount            int64       `json:"book_count"`
-	TotalCopies          int64       `json:"total_copies"`
-	AvailableCopies      int64       `json:"available_copies"`
-	LostBooks            int64       `json:"lost_books"`
-	BooksNeedReplacement int64       `json:"books_need_replacement"`
+	Hall                 string  `json:"hall"`
+	Category             *string `json:"category"`
+	BookCount            int64   `json:"book_count"`
+	TotalCopies          int64   `json:"total_copies"`
+	AvailableCopies      int64   `json:"available_copies"`
+	LostBooks            int64   `json:"lost_books"`
+	BooksNeedReplacement int64   `json:"books_need_replacement"`
 }
 
 func (q *Queries) GetInventoryReport(ctx context.Context) ([]*GetInventoryReportRow, error) {
@@ -152,7 +151,7 @@ func (q *Queries) GetInventoryReport(ctx context.Context) ([]*GetInventoryReport
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetInventoryReportRow
+	items := []*GetInventoryReportRow{}
 	for rows.Next() {
 		var i GetInventoryReportRow
 		if err := rows.Scan(
@@ -200,7 +199,7 @@ ORDER BY
 `
 
 type GetLoanStatusStatisticsRow struct {
-	Status     pgtype.Text     `json:"status"`
+	Status     string          `json:"status"`
 	Count      int64           `json:"count"`
 	Percentage decimal.Decimal `json:"percentage"`
 }
@@ -211,7 +210,7 @@ func (q *Queries) GetLoanStatusStatistics(ctx context.Context, loanDate time.Tim
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetLoanStatusStatisticsRow
+	items := []*GetLoanStatusStatisticsRow{}
 	for rows.Next() {
 		var i GetLoanStatusStatisticsRow
 		if err := rows.Scan(&i.Status, &i.Count, &i.Percentage); err != nil {
@@ -260,7 +259,7 @@ func (q *Queries) GetMonthlyReport(ctx context.Context) ([]*GetMonthlyReportRow,
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetMonthlyReportRow
+	items := []*GetMonthlyReportRow{}
 	for rows.Next() {
 		var i GetMonthlyReportRow
 		if err := rows.Scan(
@@ -330,7 +329,7 @@ func (q *Queries) GetYearlyReportByCategory(ctx context.Context) ([]*GetYearlyRe
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetYearlyReportByCategoryRow
+	items := []*GetYearlyReportByCategoryRow{}
 	for rows.Next() {
 		var i GetYearlyReportByCategoryRow
 		if err := rows.Scan(

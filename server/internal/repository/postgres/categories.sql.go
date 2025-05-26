@@ -9,7 +9,6 @@ import (
 	"context"
 
 	"github.com/govalues/decimal"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createCategory = `-- name: CreateCategory :one
@@ -19,9 +18,9 @@ RETURNING id, name, description, default_loan_days, created_at
 `
 
 type CreateCategoryParams struct {
-	Name            string      `json:"name"`
-	Description     pgtype.Text `json:"description"`
-	DefaultLoanDays pgtype.Int4 `json:"default_loan_days"`
+	Name            string  `json:"name"`
+	Description     *string `json:"description"`
+	DefaultLoanDays int     `json:"default_loan_days"`
 }
 
 func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) (*BookCategory, error) {
@@ -47,7 +46,7 @@ func (q *Queries) GetAllCategories(ctx context.Context) ([]*BookCategory, error)
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*BookCategory
+	items := []*BookCategory{}
 	for rows.Next() {
 		var i BookCategory
 		if err := rows.Scan(
@@ -99,7 +98,7 @@ func (q *Queries) GetCategoryStatistics(ctx context.Context) ([]*GetCategoryStat
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetCategoryStatisticsRow
+	items := []*GetCategoryStatisticsRow{}
 	for rows.Next() {
 		var i GetCategoryStatisticsRow
 		if err := rows.Scan(

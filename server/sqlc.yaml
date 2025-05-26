@@ -1,45 +1,85 @@
 version: "2"
 sql:
   - engine: "postgresql"
-    schema: "./sql/schema/" # Directory for schema files
-    queries: "./sql/queries/" # Directory for query files
+    queries: "./sql/queries"
+    schema: "./sql/schema"
     gen:
       go:
         package: "postgres"
         out: "./internal/repository/postgres"
         sql_package: "pgx/v5"
         emit_json_tags: true
-        emit_result_struct_pointers: true
-        emit_prepared_queries: true
         emit_interface: true
+        emit_empty_slices: true
+        emit_result_struct_pointers: true
+        emit_pointers_for_null_types: true
         overrides:
-          # - db_type: "uuid"
-          #   go_type:
-          #     import: "github.com/google/uuid"
-          #     type: "UUID"
+          # Базовые типы для int4 и int8
+          - db_type: "pg_catalog.int4"
+            go_type: "int"
+          - db_type: "pg_catalog.int8"
+            go_type: "int64"
+          - db_type: "serial"
+            go_type: "int64"
 
-          # Timestamp with timezone
-          - db_type: "timestamptz"
+          - db_type: "pg_catalog.int4"
+            go_type:
+              type: "int"
+              pointer: true
+            nullable: true
+          - db_type: "pg_catalog.int8"
+            go_type:
+              type: "int64"
+              pointer: true
+            nullable: true
+
+          - db_type: "pg_catalog.timestamp"
             go_type:
               import: "time"
               type: "Time"
-
+          - db_type: "pg_catalog.timestamp"
+            go_type:
+              import: "time"
+              type: "Time"
+              pointer: true
+            nullable: true
           - db_type: "date"
             go_type:
               import: "time"
-              type: "Time" # time.Time
-
-          # Numeric/Decimal
-          - column: "inventory.price"
+              type: "Time"
+              pointer: true
+            nullable: true
+          - db_type: "date"
             go_type:
-              import: "github.com/govalues/decimal"
-              type: "Decimal"
+              import: "time"
+              type: "Time"
+            nullable: false
+
           - db_type: "numeric"
             go_type:
               import: "github.com/govalues/decimal"
               type: "Decimal"
-
-          # Text arrays
-          - db_type: "text[]"
+          - column: "readers.total_debt"
             go_type:
-              type: "[]string"
+              import: "github.com/govalues/decimal"
+              type: "Decimal"
+          - column: "halls.average_occupancy"
+            go_type:
+              import: "github.com/govalues/decimal"
+              type: "Decimal"
+          - column: "loan_history.fine_amount"
+            go_type:
+              import: "github.com/govalues/decimal"
+              type: "Decimal"
+          - column: "fines.amount"
+            go_type:
+              import: "github.com/govalues/decimal"
+              type: "Decimal"
+          - column: "books.rating"
+            go_type:
+              import: "github.com/govalues/decimal"
+              type: "Decimal"
+          - column: "daily_statistics.total_fines_amount"
+            go_type:
+              import: "github.com/govalues/decimal"
+              type: "Decimal"

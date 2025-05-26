@@ -13,7 +13,7 @@ type Querier interface {
 	AdvancedBookSearch(ctx context.Context, arg AdvancedBookSearchParams) ([]*AdvancedBookSearchRow, error)
 	AdvancedSearchBooks(ctx context.Context, arg AdvancedSearchBooksParams) ([]*AdvancedSearchBooksRow, error)
 	CalculateOverdueFine(ctx context.Context, arg CalculateOverdueFineParams) (*CalculateOverdueFineRow, error)
-	CancelReservation(ctx context.Context, reservationID int32) error
+	CancelReservation(ctx context.Context, reservationID int64) error
 	CheckLoanEligibility(ctx context.Context, arg CheckLoanEligibilityParams) (*CheckLoanEligibilityRow, error)
 	CreateBook(ctx context.Context, arg CreateBookParams) (*Book, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (*BookCategory, error)
@@ -26,9 +26,9 @@ type Querier interface {
 	CreateRenewal(ctx context.Context, arg CreateRenewalParams) error
 	CreateRenewalRecord(ctx context.Context, arg CreateRenewalRecordParams) (*Renewal, error)
 	CreateReservation(ctx context.Context, arg CreateReservationParams) (*Reservation, error)
-	DeactivateLibrarian(ctx context.Context, librarianID int32) error
-	FulfillReservation(ctx context.Context, reservationID int32) error
-	GetActiveLoansByBook(ctx context.Context, bookID int32) ([]*GetActiveLoansByBookRow, error)
+	DeactivateLibrarian(ctx context.Context, librarianID int64) error
+	FulfillReservation(ctx context.Context, reservationID int64) error
+	GetActiveLoansByBook(ctx context.Context, bookID int) ([]*GetActiveLoansByBookRow, error)
 	GetActiveReaders(ctx context.Context, resultLimit int32) ([]*GetActiveReadersRow, error)
 	GetAllCategories(ctx context.Context) ([]*BookCategory, error)
 	GetAllHalls(ctx context.Context) ([]*GetAllHallsRow, error)
@@ -36,57 +36,57 @@ type Querier interface {
 	GetAllReaders(ctx context.Context, arg GetAllReadersParams) ([]*GetAllReadersRow, error)
 	GetAvailableBooks(ctx context.Context, resultLimit int32) ([]*GetAvailableBooksRow, error)
 	GetBookByCode(ctx context.Context, bookCode string) (*GetBookByCodeRow, error)
-	GetBookByID(ctx context.Context, bookID int32) (*GetBookByIDRow, error)
-	GetBookQueue(ctx context.Context, bookID int32) ([]*GetBookQueueRow, error)
+	GetBookByID(ctx context.Context, bookID int64) (*GetBookByIDRow, error)
+	GetBookQueue(ctx context.Context, bookID int) ([]*GetBookQueueRow, error)
 	GetBooksByAuthorInHall(ctx context.Context, arg GetBooksByAuthorInHallParams) (*GetBooksByAuthorInHallRow, error)
 	GetBooksDueToday(ctx context.Context) ([]*GetBooksDueTodayRow, error)
 	GetBooksWithSingleCopy(ctx context.Context) ([]*GetBooksWithSingleCopyRow, error)
 	GetCategoryStatistics(ctx context.Context) ([]*GetCategoryStatisticsRow, error)
 	GetDebtorReaders(ctx context.Context) ([]*GetDebtorReadersRow, error)
 	GetExpiredReservations(ctx context.Context) ([]*GetExpiredReservationsRow, error)
-	GetHallByID(ctx context.Context, hallID int32) (*Hall, error)
+	GetHallByID(ctx context.Context, hallID int64) (*Hall, error)
 	GetHallStatistics(ctx context.Context) ([]*GetHallStatisticsRow, error)
 	GetInventoryReport(ctx context.Context) ([]*GetInventoryReportRow, error)
 	GetLibrarianByEmployeeID(ctx context.Context, employeeID string) (*Librarian, error)
-	GetLibrarianByID(ctx context.Context, librarianID int32) (*Librarian, error)
-	GetLoanByID(ctx context.Context, loanID int32) (*GetLoanByIDRow, error)
+	GetLibrarianByID(ctx context.Context, librarianID int64) (*Librarian, error)
+	GetLoanByID(ctx context.Context, loanID int64) (*GetLoanByIDRow, error)
 	GetLoanStatusStatistics(ctx context.Context, loanDate time.Time) ([]*GetLoanStatusStatisticsRow, error)
 	GetMonthlyReport(ctx context.Context) ([]*GetMonthlyReportRow, error)
 	GetMostRenewedBooks(ctx context.Context, resultLimit int32) ([]*GetMostRenewedBooksRow, error)
 	GetOperationLogs(ctx context.Context, arg GetOperationLogsParams) ([]*GetOperationLogsRow, error)
 	GetOverdueBooks(ctx context.Context, resultLimit int32) ([]*GetOverdueBooksRow, error)
 	GetPopularBooks(ctx context.Context, resultLimit int32) ([]*GetPopularBooksRow, error)
-	GetReaderByID(ctx context.Context, readerID int32) (*GetReaderByIDRow, error)
+	GetReaderByID(ctx context.Context, readerID int64) (*GetReaderByIDRow, error)
 	GetReaderByTicket(ctx context.Context, ticketNumber string) (*GetReaderByTicketRow, error)
-	GetReaderCurrentLoans(ctx context.Context, readerID int32) ([]*GetReaderCurrentLoansRow, error)
-	GetReaderFavoriteCategories(ctx context.Context, readerID int32) ([]*GetReaderFavoriteCategoriesRow, error)
-	GetReaderFines(ctx context.Context, readerID int32) ([]*GetReaderFinesRow, error)
+	GetReaderCurrentLoans(ctx context.Context, readerID int) ([]*GetReaderCurrentLoansRow, error)
+	GetReaderFavoriteCategories(ctx context.Context, readerID int) ([]*GetReaderFavoriteCategoriesRow, error)
+	GetReaderFines(ctx context.Context, readerID int) ([]*GetReaderFinesRow, error)
 	GetReaderLoanHistory(ctx context.Context, arg GetReaderLoanHistoryParams) ([]*GetReaderLoanHistoryRow, error)
-	GetReaderReservations(ctx context.Context, readerID int32) ([]*GetReaderReservationsRow, error)
-	GetReaderStatistics(ctx context.Context, readerID int32) (*GetReaderStatisticsRow, error)
+	GetReaderReservations(ctx context.Context, readerID int) ([]*GetReaderReservationsRow, error)
+	GetReaderStatistics(ctx context.Context, readerID int64) (*GetReaderStatisticsRow, error)
 	GetReadersCount(ctx context.Context) (int64, error)
 	GetRecentOperations(ctx context.Context, resultLimit int32) ([]*GetRecentOperationsRow, error)
 	GetRenewalsByDate(ctx context.Context, arg GetRenewalsByDateParams) ([]*GetRenewalsByDateRow, error)
-	GetRenewalsForLoan(ctx context.Context, loanHistoryID int32) ([]*GetRenewalsForLoanRow, error)
+	GetRenewalsForLoan(ctx context.Context, loanHistoryID int) ([]*GetRenewalsForLoanRow, error)
 	GetTopRatedBooks(ctx context.Context, resultLimit int32) ([]*GetTopRatedBooksRow, error)
 	GetUnpaidFines(ctx context.Context) ([]*GetUnpaidFinesRow, error)
 	GetYearlyReportByCategory(ctx context.Context) ([]*GetYearlyReportByCategoryRow, error)
 	GlobalSearch(ctx context.Context, searchTerm string) ([]*GlobalSearchRow, error)
-	MarkLoanAsLost(ctx context.Context, id int32) error
-	PayFine(ctx context.Context, fineID int32) error
-	RenewLoan(ctx context.Context, loanID int32) error
+	MarkLoanAsLost(ctx context.Context, id int64) error
+	PayFine(ctx context.Context, fineID int64) error
+	RenewLoan(ctx context.Context, loanID int64) error
 	ReturnBook(ctx context.Context, arg ReturnBookParams) error
 	SearchBooks(ctx context.Context, arg SearchBooksParams) ([]*SearchBooksRow, error)
 	SearchReadersByName(ctx context.Context, arg SearchReadersByNameParams) ([]*SearchReadersByNameRow, error)
 	UpdateBookAvailability(ctx context.Context, arg UpdateBookAvailabilityParams) error
 	UpdateBookCopies(ctx context.Context, arg UpdateBookCopiesParams) error
-	UpdateHallOccupancy(ctx context.Context, hallID int32) error
+	UpdateHallOccupancy(ctx context.Context, hallID int) error
 	UpdateLibrarian(ctx context.Context, arg UpdateLibrarianParams) (*Librarian, error)
 	UpdateReader(ctx context.Context, arg UpdateReaderParams) (*Reader, error)
-	UpdateReaderDebt(ctx context.Context, readerID int32) error
+	UpdateReaderDebt(ctx context.Context, readerID int64) error
 	UpdateReaderStatus(ctx context.Context, arg UpdateReaderStatusParams) error
-	WaiveFine(ctx context.Context, fineID int32) error
-	WriteOffBook(ctx context.Context, bookID int32) error
+	WaiveFine(ctx context.Context, fineID int64) error
+	WriteOffBook(ctx context.Context, bookID int64) error
 }
 
 var _ Querier = (*Queries)(nil)

@@ -5,13 +5,13 @@ CREATE TABLE halls (
     specialization VARCHAR(100) NOT NULL, -- Специализация зала
     total_seats INTEGER NOT NULL DEFAULT 0, -- Общее количество мест
     occupied_seats INTEGER NOT NULL DEFAULT 0, -- Занятые места
-    working_hours VARCHAR(50) DEFAULT '09:00-18:00', -- Время работы
+    working_hours VARCHAR(50) NOT NULL DEFAULT '09:00-18:00', -- Время работы
     equipment TEXT, -- Оборудование
-    status VARCHAR(20) DEFAULT 'open' CHECK (status IN ('open', 'closed', 'maintenance')), -- Статус зала
-    visit_statistics INTEGER DEFAULT 0, -- Статистика посещений
-    average_occupancy DECIMAL(5, 2) DEFAULT 0.00, -- Средняя загруженность %
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    status VARCHAR(20) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed', 'maintenance')), -- Статус зала
+    visit_statistics INTEGER NOT NULL DEFAULT 0, -- Статистика посещений
+    average_occupancy DECIMAL(5, 2) NOT NULL DEFAULT 0.00, -- Средняя загруженность %
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Создание триггера для обновления updated_at
@@ -36,15 +36,15 @@ CREATE TABLE readers (
     email VARCHAR(100), -- Email
     education VARCHAR(100), -- Образование
     hall_id INTEGER NOT NULL, -- Закрепленный зал
-    max_books_allowed INTEGER DEFAULT 5, -- Максимальное количество книг
-    max_renewals_allowed INTEGER DEFAULT 2, -- Максимальное количество продлений
-    total_debt DECIMAL(10, 2) DEFAULT 0.00, -- Общая задолженность
-    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'blocked', 'debtor', 'inactive')), -- Статус читателя
-    reader_rating INTEGER DEFAULT 0, -- Рейтинг читателя
-    registration_date DATE DEFAULT CURRENT_DATE, -- Дата регистрации
+    max_books_allowed INTEGER NOT NULL DEFAULT 5, -- Максимальное количество книг
+    max_renewals_allowed INTEGER NOT NULL DEFAULT 2, -- Максимальное количество продлений
+    total_debt DECIMAL(10, 2) NOT NULL DEFAULT 0.00, -- Общая задолженность
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'blocked', 'debtor', 'inactive')), -- Статус читателя
+    reader_rating INTEGER NOT NULL DEFAULT 0, -- Рейтинг читателя
+    registration_date DATE NOT NULL DEFAULT CURRENT_DATE, -- Дата регистрации
     last_activity_date DATE, -- Дата последней активности
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_readers_hall FOREIGN KEY (hall_id) REFERENCES halls (id) ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
@@ -60,8 +60,8 @@ CREATE TABLE book_categories (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE, -- Название категории
     description TEXT, -- Описание категории
-    default_loan_days INTEGER DEFAULT 30, -- Стандартный срок выдачи для категории
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    default_loan_days INTEGER NOT NULL DEFAULT 30, -- Стандартный срок выдачи для категории
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 4. Таблица книг
@@ -76,16 +76,16 @@ CREATE TABLE books (
     hall_id INTEGER NOT NULL, -- Зал, где находится книга
     total_copies INTEGER NOT NULL DEFAULT 1, -- Общее количество экземпляров
     available_copies INTEGER NOT NULL DEFAULT 1, -- Доступные экземпляры
-    condition_status VARCHAR(20) DEFAULT 'good' CHECK (condition_status IN ('excellent', 'good', 'fair', 'poor')), -- Состояние книги
+    condition_status VARCHAR(20) NOT NULL DEFAULT 'good' CHECK (condition_status IN ('excellent', 'good', 'fair', 'poor')), -- Состояние книги
     location_info VARCHAR(100), -- Местоположение (стеллаж, полка)
-    max_loan_days INTEGER DEFAULT 30, -- Максимальный срок выдачи
-    max_renewals INTEGER DEFAULT 2, -- Максимальное количество продлений
-    popularity_score INTEGER DEFAULT 0, -- Счетчик популярности
-    rating DECIMAL(3, 2) DEFAULT 0.00, -- Рейтинг книги (0-10)
-    acquisition_date DATE DEFAULT CURRENT_DATE, -- Дата поступления
-    status VARCHAR(20) DEFAULT 'available' CHECK (status IN ('available', 'loaned', 'reserved', 'maintenance', 'lost')), -- Статус книги
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    max_loan_days INTEGER NOT NULL DEFAULT 30, -- Максимальный срок выдачи
+    max_renewals INTEGER NOT NULL DEFAULT 2, -- Максимальное количество продлений
+    popularity_score INTEGER NOT NULL DEFAULT 0, -- Счетчик популярности
+    rating DECIMAL(3, 2) NOT NULL DEFAULT 0.00, -- Рейтинг книги (0-10)
+    acquisition_date DATE NOT NULL DEFAULT CURRENT_DATE, -- Дата поступления
+    status VARCHAR(20) NOT NULL DEFAULT 'available' CHECK (status IN ('available', 'loaned', 'reserved', 'maintenance', 'lost')), -- Статус книги
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_books_category FOREIGN KEY (category_id) REFERENCES book_categories (id) ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT fk_books_hall FOREIGN KEY (hall_id) REFERENCES halls (id) ON DELETE RESTRICT ON UPDATE CASCADE
 );
@@ -105,13 +105,13 @@ CREATE TABLE librarians (
     id SERIAL PRIMARY KEY,
     full_name VARCHAR(150) NOT NULL, -- ФИО сотрудника
     employee_id VARCHAR(20) UNIQUE NOT NULL, -- Табельный номер
-    position VARCHAR(100) DEFAULT 'Библиотекарь', -- Должность
+    position VARCHAR(100) NOT NULL DEFAULT 'Библиотекарь', -- Должность
     phone VARCHAR(20), -- Телефон
     email VARCHAR(100), -- Email
-    hire_date DATE DEFAULT CURRENT_DATE, -- Дата приема на работу
-    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive')), -- Статус сотрудника
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    hire_date DATE NOT NULL DEFAULT CURRENT_DATE, -- Дата приема на работу
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')), -- Статус сотрудника
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_librarians_employee_id ON librarians (employee_id);
@@ -129,14 +129,14 @@ CREATE TABLE loan_history (
     loan_date DATE NOT NULL DEFAULT CURRENT_DATE, -- Дата выдачи
     due_date DATE NOT NULL, -- Планируемая дата возврата
     return_date DATE, -- Фактическая дата возврата
-    renewals_count INTEGER DEFAULT 0, -- Количество продлений
-    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'returned', 'overdue', 'lost', 'damaged')), -- Статус выдачи
-    fine_amount DECIMAL(10, 2) DEFAULT 0.00, -- Сумма штрафа
-    fine_paid BOOLEAN DEFAULT FALSE, -- Штраф оплачен
+    renewals_count INTEGER NOT NULL DEFAULT 0, -- Количество продлений
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'returned', 'overdue', 'lost', 'damaged')), -- Статус выдачи
+    fine_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00, -- Сумма штрафа
+    fine_paid BOOLEAN NOT NULL DEFAULT FALSE, -- Штраф оплачен
     comments TEXT, -- Комментарии
     return_librarian_id INTEGER, -- ID библиотекаря, принявшего книгу
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_loan_history_book FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_loan_history_reader FOREIGN KEY (reader_id) REFERENCES readers (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_loan_history_librarian FOREIGN KEY (librarian_id) REFERENCES librarians (id) ON DELETE RESTRICT ON UPDATE CASCADE,
@@ -162,7 +162,7 @@ CREATE TABLE renewals (
     new_due_date DATE NOT NULL, -- Новая дата возврата
     librarian_id INTEGER NOT NULL, -- ID библиотекаря, сделавшего продление
     reason VARCHAR(200), -- Причина продления
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_renewals_loan_history FOREIGN KEY (loan_history_id) REFERENCES loan_history (id) ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT fk_renewals_librarian FOREIGN KEY (librarian_id) REFERENCES librarians (id) ON DELETE RESTRICT ON UPDATE CASCADE
 );
@@ -177,11 +177,11 @@ CREATE TABLE reservations (
     reader_id INTEGER NOT NULL, -- ID читателя
     reservation_date DATE NOT NULL DEFAULT CURRENT_DATE, -- Дата бронирования
     expiration_date DATE NOT NULL, -- Дата истечения брони
-    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'fulfilled', 'cancelled', 'expired')), -- Статус брони
-    priority_order INTEGER DEFAULT 1, -- Порядок в очереди
-    notification_sent BOOLEAN DEFAULT FALSE, -- Уведомление отправлено
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'fulfilled', 'cancelled', 'expired')), -- Статус брони
+    priority_order INTEGER NOT NULL DEFAULT 1, -- Порядок в очереди
+    notification_sent BOOLEAN NOT NULL DEFAULT FALSE, -- Уведомление отправлено
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_reservations_book FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT fk_reservations_reader FOREIGN KEY (reader_id) REFERENCES readers (id) ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -203,11 +203,11 @@ CREATE TABLE fines (
     amount DECIMAL(10, 2) NOT NULL, -- Сумма штрафа
     fine_date DATE NOT NULL DEFAULT CURRENT_DATE, -- Дата начисления штрафа
     payment_date DATE, -- Дата оплаты
-    status VARCHAR(20) DEFAULT 'unpaid' CHECK (status IN ('unpaid', 'paid', 'waived')), -- Статус оплаты
+    status VARCHAR(20) NOT NULL DEFAULT 'unpaid' CHECK (status IN ('unpaid', 'paid', 'waived')), -- Статус оплаты
     description TEXT, -- Описание штрафа
     librarian_id INTEGER NOT NULL, -- ID библиотекаря, начислившего штраф
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_fines_loan_history FOREIGN KEY (loan_history_id) REFERENCES loan_history (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_fines_reader FOREIGN KEY (reader_id) REFERENCES readers (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_fines_librarian FOREIGN KEY (librarian_id) REFERENCES librarians (id) ON DELETE RESTRICT ON UPDATE CASCADE
@@ -227,7 +227,7 @@ CREATE TABLE operation_logs (
     entity_type VARCHAR(20) NOT NULL CHECK (entity_type IN ('book', 'reader', 'hall', 'loan', 'reservation')),
     entity_id INTEGER NOT NULL, -- ID сущности, с которой производилась операция
     librarian_id INTEGER, -- ID библиотекаря, выполнившего операцию
-    operation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    operation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     details JSONB, -- Детали операции в формате JSON
     description TEXT -- Описание операции
 );
@@ -241,15 +241,15 @@ CREATE INDEX idx_operation_logs_librarian_id ON operation_logs (librarian_id);
 CREATE TABLE daily_statistics (
     id SERIAL PRIMARY KEY,
     stat_date DATE NOT NULL UNIQUE,
-    total_loans INTEGER DEFAULT 0, -- Выдач за день
-    total_returns INTEGER DEFAULT 0, -- Возвратов за день
-    total_renewals INTEGER DEFAULT 0, -- Продлений за день
-    total_reservations INTEGER DEFAULT 0, -- Бронирований за день
-    total_new_readers INTEGER DEFAULT 0, -- Новых читателей за день
-    total_fines_amount DECIMAL(10, 2) DEFAULT 0.00, -- Сумма штрафов за день
-    overdue_books INTEGER DEFAULT 0, -- Просроченных книг на конец дня
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    total_loans INTEGER NOT NULL DEFAULT 0, -- Выдач за день
+    total_returns INTEGER NOT NULL DEFAULT 0, -- Возвратов за день
+    total_renewals INTEGER NOT NULL DEFAULT 0, -- Продлений за день
+    total_reservations INTEGER NOT NULL DEFAULT 0, -- Бронирований за день
+    total_new_readers INTEGER NOT NULL DEFAULT 0, -- Новых читателей за день
+    total_fines_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00, -- Сумма штрафов за день
+    overdue_books INTEGER NOT NULL DEFAULT 0, -- Просроченных книг на конец дня
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_daily_statistics_stat_date ON daily_statistics (stat_date);

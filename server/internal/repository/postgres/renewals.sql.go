@@ -8,8 +8,6 @@ package postgres
 import (
 	"context"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createRenewalRecord = `-- name: CreateRenewalRecord :one
@@ -21,11 +19,11 @@ INSERT INTO renewals (
 `
 
 type CreateRenewalRecordParams struct {
-	LoanHistoryID int32       `json:"loan_history_id"`
-	OldDueDate    time.Time   `json:"old_due_date"`
-	NewDueDate    time.Time   `json:"new_due_date"`
-	LibrarianID   int32       `json:"librarian_id"`
-	Reason        pgtype.Text `json:"reason"`
+	LoanHistoryID int       `json:"loan_history_id"`
+	OldDueDate    time.Time `json:"old_due_date"`
+	NewDueDate    time.Time `json:"new_due_date"`
+	LibrarianID   int       `json:"librarian_id"`
+	Reason        *string   `json:"reason"`
 }
 
 func (q *Queries) CreateRenewalRecord(ctx context.Context, arg CreateRenewalRecordParams) (*Renewal, error) {
@@ -78,7 +76,7 @@ func (q *Queries) GetMostRenewedBooks(ctx context.Context, resultLimit int32) ([
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetMostRenewedBooksRow
+	items := []*GetMostRenewedBooksRow{}
 	for rows.Next() {
 		var i GetMostRenewedBooksRow
 		if err := rows.Scan(
@@ -120,19 +118,19 @@ type GetRenewalsByDateParams struct {
 }
 
 type GetRenewalsByDateRow struct {
-	ID            int32            `json:"id"`
-	LoanHistoryID int32            `json:"loan_history_id"`
-	RenewalDate   time.Time        `json:"renewal_date"`
-	OldDueDate    time.Time        `json:"old_due_date"`
-	NewDueDate    time.Time        `json:"new_due_date"`
-	LibrarianID   int32            `json:"librarian_id"`
-	Reason        pgtype.Text      `json:"reason"`
-	CreatedAt     pgtype.Timestamp `json:"created_at"`
-	BookID        int32            `json:"book_id"`
-	Title         string           `json:"title"`
-	Author        string           `json:"author"`
-	ReaderName    string           `json:"reader_name"`
-	LibrarianName string           `json:"librarian_name"`
+	ID            int64     `json:"id"`
+	LoanHistoryID int       `json:"loan_history_id"`
+	RenewalDate   time.Time `json:"renewal_date"`
+	OldDueDate    time.Time `json:"old_due_date"`
+	NewDueDate    time.Time `json:"new_due_date"`
+	LibrarianID   int       `json:"librarian_id"`
+	Reason        *string   `json:"reason"`
+	CreatedAt     time.Time `json:"created_at"`
+	BookID        int       `json:"book_id"`
+	Title         string    `json:"title"`
+	Author        string    `json:"author"`
+	ReaderName    string    `json:"reader_name"`
+	LibrarianName string    `json:"librarian_name"`
 }
 
 func (q *Queries) GetRenewalsByDate(ctx context.Context, arg GetRenewalsByDateParams) ([]*GetRenewalsByDateRow, error) {
@@ -141,7 +139,7 @@ func (q *Queries) GetRenewalsByDate(ctx context.Context, arg GetRenewalsByDatePa
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetRenewalsByDateRow
+	items := []*GetRenewalsByDateRow{}
 	for rows.Next() {
 		var i GetRenewalsByDateRow
 		if err := rows.Scan(
@@ -180,24 +178,24 @@ ORDER BY r.renewal_date DESC
 `
 
 type GetRenewalsForLoanRow struct {
-	ID            int32            `json:"id"`
-	LoanHistoryID int32            `json:"loan_history_id"`
-	RenewalDate   time.Time        `json:"renewal_date"`
-	OldDueDate    time.Time        `json:"old_due_date"`
-	NewDueDate    time.Time        `json:"new_due_date"`
-	LibrarianID   int32            `json:"librarian_id"`
-	Reason        pgtype.Text      `json:"reason"`
-	CreatedAt     pgtype.Timestamp `json:"created_at"`
-	LibrarianName string           `json:"librarian_name"`
+	ID            int64     `json:"id"`
+	LoanHistoryID int       `json:"loan_history_id"`
+	RenewalDate   time.Time `json:"renewal_date"`
+	OldDueDate    time.Time `json:"old_due_date"`
+	NewDueDate    time.Time `json:"new_due_date"`
+	LibrarianID   int       `json:"librarian_id"`
+	Reason        *string   `json:"reason"`
+	CreatedAt     time.Time `json:"created_at"`
+	LibrarianName string    `json:"librarian_name"`
 }
 
-func (q *Queries) GetRenewalsForLoan(ctx context.Context, loanHistoryID int32) ([]*GetRenewalsForLoanRow, error) {
+func (q *Queries) GetRenewalsForLoan(ctx context.Context, loanHistoryID int) ([]*GetRenewalsForLoanRow, error) {
 	rows, err := q.db.Query(ctx, getRenewalsForLoan, loanHistoryID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetRenewalsForLoanRow
+	items := []*GetRenewalsForLoanRow{}
 	for rows.Next() {
 		var i GetRenewalsForLoanRow
 		if err := rows.Scan(

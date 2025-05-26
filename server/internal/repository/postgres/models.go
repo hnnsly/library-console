@@ -7,178 +7,178 @@ package postgres
 import (
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/govalues/decimal"
 )
 
 // Таблица книг
 type Book struct {
-	ID              int32            `json:"id"`
-	Title           string           `json:"title"`
-	Author          string           `json:"author"`
-	PublicationYear int32            `json:"publication_year"`
-	Isbn            pgtype.Text      `json:"isbn"`
-	BookCode        string           `json:"book_code"`
-	CategoryID      pgtype.Int4      `json:"category_id"`
-	HallID          int32            `json:"hall_id"`
-	TotalCopies     int32            `json:"total_copies"`
-	AvailableCopies int32            `json:"available_copies"`
-	ConditionStatus pgtype.Text      `json:"condition_status"`
-	LocationInfo    pgtype.Text      `json:"location_info"`
-	MaxLoanDays     pgtype.Int4      `json:"max_loan_days"`
-	MaxRenewals     pgtype.Int4      `json:"max_renewals"`
-	PopularityScore pgtype.Int4      `json:"popularity_score"`
-	Rating          pgtype.Numeric   `json:"rating"`
-	AcquisitionDate pgtype.Date      `json:"acquisition_date"`
-	Status          pgtype.Text      `json:"status"`
-	CreatedAt       pgtype.Timestamp `json:"created_at"`
-	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+	ID              int64           `json:"id"`
+	Title           string          `json:"title"`
+	Author          string          `json:"author"`
+	PublicationYear int             `json:"publication_year"`
+	Isbn            *string         `json:"isbn"`
+	BookCode        string          `json:"book_code"`
+	CategoryID      *int            `json:"category_id"`
+	HallID          int             `json:"hall_id"`
+	TotalCopies     int             `json:"total_copies"`
+	AvailableCopies int             `json:"available_copies"`
+	ConditionStatus string          `json:"condition_status"`
+	LocationInfo    *string         `json:"location_info"`
+	MaxLoanDays     int             `json:"max_loan_days"`
+	MaxRenewals     int             `json:"max_renewals"`
+	PopularityScore int             `json:"popularity_score"`
+	Rating          decimal.Decimal `json:"rating"`
+	AcquisitionDate time.Time       `json:"acquisition_date"`
+	Status          string          `json:"status"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
 }
 
 // Таблица категорий книг
 type BookCategory struct {
-	ID              int32            `json:"id"`
-	Name            string           `json:"name"`
-	Description     pgtype.Text      `json:"description"`
-	DefaultLoanDays pgtype.Int4      `json:"default_loan_days"`
-	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	ID              int64     `json:"id"`
+	Name            string    `json:"name"`
+	Description     *string   `json:"description"`
+	DefaultLoanDays int       `json:"default_loan_days"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 // Таблица статистики по дням (для аналитики)
 type DailyStatistic struct {
-	ID                int32            `json:"id"`
-	StatDate          time.Time        `json:"stat_date"`
-	TotalLoans        pgtype.Int4      `json:"total_loans"`
-	TotalReturns      pgtype.Int4      `json:"total_returns"`
-	TotalRenewals     pgtype.Int4      `json:"total_renewals"`
-	TotalReservations pgtype.Int4      `json:"total_reservations"`
-	TotalNewReaders   pgtype.Int4      `json:"total_new_readers"`
-	TotalFinesAmount  pgtype.Numeric   `json:"total_fines_amount"`
-	OverdueBooks      pgtype.Int4      `json:"overdue_books"`
-	CreatedAt         pgtype.Timestamp `json:"created_at"`
-	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+	ID                int64           `json:"id"`
+	StatDate          time.Time       `json:"stat_date"`
+	TotalLoans        int             `json:"total_loans"`
+	TotalReturns      int             `json:"total_returns"`
+	TotalRenewals     int             `json:"total_renewals"`
+	TotalReservations int             `json:"total_reservations"`
+	TotalNewReaders   int             `json:"total_new_readers"`
+	TotalFinesAmount  decimal.Decimal `json:"total_fines_amount"`
+	OverdueBooks      int             `json:"overdue_books"`
+	CreatedAt         time.Time       `json:"created_at"`
+	UpdatedAt         time.Time       `json:"updated_at"`
 }
 
 // Таблица штрафов
 type Fine struct {
-	ID            int32            `json:"id"`
-	LoanHistoryID int32            `json:"loan_history_id"`
-	ReaderID      int32            `json:"reader_id"`
-	FineType      string           `json:"fine_type"`
-	Amount        pgtype.Numeric   `json:"amount"`
-	FineDate      time.Time        `json:"fine_date"`
-	PaymentDate   pgtype.Date      `json:"payment_date"`
-	Status        pgtype.Text      `json:"status"`
-	Description   pgtype.Text      `json:"description"`
-	LibrarianID   int32            `json:"librarian_id"`
-	CreatedAt     pgtype.Timestamp `json:"created_at"`
-	UpdatedAt     pgtype.Timestamp `json:"updated_at"`
+	ID            int64           `json:"id"`
+	LoanHistoryID int             `json:"loan_history_id"`
+	ReaderID      int             `json:"reader_id"`
+	FineType      string          `json:"fine_type"`
+	Amount        decimal.Decimal `json:"amount"`
+	FineDate      time.Time       `json:"fine_date"`
+	PaymentDate   *time.Time      `json:"payment_date"`
+	Status        string          `json:"status"`
+	Description   *string         `json:"description"`
+	LibrarianID   int             `json:"librarian_id"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
 }
 
 // Таблица читальных залов
 type Hall struct {
-	ID               int32            `json:"id"`
-	Name             string           `json:"name"`
-	LibraryName      string           `json:"library_name"`
-	Specialization   string           `json:"specialization"`
-	TotalSeats       int32            `json:"total_seats"`
-	OccupiedSeats    int32            `json:"occupied_seats"`
-	WorkingHours     pgtype.Text      `json:"working_hours"`
-	Equipment        pgtype.Text      `json:"equipment"`
-	Status           pgtype.Text      `json:"status"`
-	VisitStatistics  pgtype.Int4      `json:"visit_statistics"`
-	AverageOccupancy pgtype.Numeric   `json:"average_occupancy"`
-	CreatedAt        pgtype.Timestamp `json:"created_at"`
-	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
+	ID               int64           `json:"id"`
+	Name             string          `json:"name"`
+	LibraryName      string          `json:"library_name"`
+	Specialization   string          `json:"specialization"`
+	TotalSeats       int             `json:"total_seats"`
+	OccupiedSeats    int             `json:"occupied_seats"`
+	WorkingHours     string          `json:"working_hours"`
+	Equipment        *string         `json:"equipment"`
+	Status           string          `json:"status"`
+	VisitStatistics  int             `json:"visit_statistics"`
+	AverageOccupancy decimal.Decimal `json:"average_occupancy"`
+	CreatedAt        time.Time       `json:"created_at"`
+	UpdatedAt        time.Time       `json:"updated_at"`
 }
 
 // Таблица сотрудников (библиотекарей)
 type Librarian struct {
-	ID         int32            `json:"id"`
-	FullName   string           `json:"full_name"`
-	EmployeeID string           `json:"employee_id"`
-	Position   pgtype.Text      `json:"position"`
-	Phone      pgtype.Text      `json:"phone"`
-	Email      pgtype.Text      `json:"email"`
-	HireDate   pgtype.Date      `json:"hire_date"`
-	Status     pgtype.Text      `json:"status"`
-	CreatedAt  pgtype.Timestamp `json:"created_at"`
-	UpdatedAt  pgtype.Timestamp `json:"updated_at"`
+	ID         int64     `json:"id"`
+	FullName   string    `json:"full_name"`
+	EmployeeID string    `json:"employee_id"`
+	Position   string    `json:"position"`
+	Phone      *string   `json:"phone"`
+	Email      *string   `json:"email"`
+	HireDate   time.Time `json:"hire_date"`
+	Status     string    `json:"status"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // Основная таблица истории выдачи книг
 type LoanHistory struct {
-	ID                int32            `json:"id"`
-	BookID            int32            `json:"book_id"`
-	ReaderID          int32            `json:"reader_id"`
-	LibrarianID       int32            `json:"librarian_id"`
-	LoanDate          time.Time        `json:"loan_date"`
-	DueDate           time.Time        `json:"due_date"`
-	ReturnDate        pgtype.Date      `json:"return_date"`
-	RenewalsCount     pgtype.Int4      `json:"renewals_count"`
-	Status            pgtype.Text      `json:"status"`
-	FineAmount        pgtype.Numeric   `json:"fine_amount"`
-	FinePaid          pgtype.Bool      `json:"fine_paid"`
-	Comments          pgtype.Text      `json:"comments"`
-	ReturnLibrarianID pgtype.Int4      `json:"return_librarian_id"`
-	CreatedAt         pgtype.Timestamp `json:"created_at"`
-	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+	ID                int64           `json:"id"`
+	BookID            int             `json:"book_id"`
+	ReaderID          int             `json:"reader_id"`
+	LibrarianID       int             `json:"librarian_id"`
+	LoanDate          time.Time       `json:"loan_date"`
+	DueDate           time.Time       `json:"due_date"`
+	ReturnDate        *time.Time      `json:"return_date"`
+	RenewalsCount     int             `json:"renewals_count"`
+	Status            string          `json:"status"`
+	FineAmount        decimal.Decimal `json:"fine_amount"`
+	FinePaid          bool            `json:"fine_paid"`
+	Comments          *string         `json:"comments"`
+	ReturnLibrarianID *int            `json:"return_librarian_id"`
+	CreatedAt         time.Time       `json:"created_at"`
+	UpdatedAt         time.Time       `json:"updated_at"`
 }
 
 // Таблица операций/логов
 type OperationLog struct {
-	ID            int32            `json:"id"`
-	OperationType string           `json:"operation_type"`
-	EntityType    string           `json:"entity_type"`
-	EntityID      int32            `json:"entity_id"`
-	LibrarianID   pgtype.Int4      `json:"librarian_id"`
-	OperationDate pgtype.Timestamp `json:"operation_date"`
-	Details       []byte           `json:"details"`
-	Description   pgtype.Text      `json:"description"`
+	ID            int64     `json:"id"`
+	OperationType string    `json:"operation_type"`
+	EntityType    string    `json:"entity_type"`
+	EntityID      int       `json:"entity_id"`
+	LibrarianID   *int      `json:"librarian_id"`
+	OperationDate time.Time `json:"operation_date"`
+	Details       []byte    `json:"details"`
+	Description   *string   `json:"description"`
 }
 
 // Таблица читателей
 type Reader struct {
-	ID                 int32            `json:"id"`
-	FullName           string           `json:"full_name"`
-	TicketNumber       string           `json:"ticket_number"`
-	BirthDate          time.Time        `json:"birth_date"`
-	Phone              pgtype.Text      `json:"phone"`
-	Email              pgtype.Text      `json:"email"`
-	Education          pgtype.Text      `json:"education"`
-	HallID             int32            `json:"hall_id"`
-	MaxBooksAllowed    pgtype.Int4      `json:"max_books_allowed"`
-	MaxRenewalsAllowed pgtype.Int4      `json:"max_renewals_allowed"`
-	TotalDebt          pgtype.Numeric   `json:"total_debt"`
-	Status             pgtype.Text      `json:"status"`
-	ReaderRating       pgtype.Int4      `json:"reader_rating"`
-	RegistrationDate   pgtype.Date      `json:"registration_date"`
-	LastActivityDate   pgtype.Date      `json:"last_activity_date"`
-	CreatedAt          pgtype.Timestamp `json:"created_at"`
-	UpdatedAt          pgtype.Timestamp `json:"updated_at"`
+	ID                 int64           `json:"id"`
+	FullName           string          `json:"full_name"`
+	TicketNumber       string          `json:"ticket_number"`
+	BirthDate          time.Time       `json:"birth_date"`
+	Phone              *string         `json:"phone"`
+	Email              *string         `json:"email"`
+	Education          *string         `json:"education"`
+	HallID             int             `json:"hall_id"`
+	MaxBooksAllowed    int             `json:"max_books_allowed"`
+	MaxRenewalsAllowed int             `json:"max_renewals_allowed"`
+	TotalDebt          decimal.Decimal `json:"total_debt"`
+	Status             string          `json:"status"`
+	ReaderRating       int             `json:"reader_rating"`
+	RegistrationDate   time.Time       `json:"registration_date"`
+	LastActivityDate   *time.Time      `json:"last_activity_date"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
 }
 
 // Таблица продлений
 type Renewal struct {
-	ID            int32            `json:"id"`
-	LoanHistoryID int32            `json:"loan_history_id"`
-	RenewalDate   time.Time        `json:"renewal_date"`
-	OldDueDate    time.Time        `json:"old_due_date"`
-	NewDueDate    time.Time        `json:"new_due_date"`
-	LibrarianID   int32            `json:"librarian_id"`
-	Reason        pgtype.Text      `json:"reason"`
-	CreatedAt     pgtype.Timestamp `json:"created_at"`
+	ID            int64     `json:"id"`
+	LoanHistoryID int       `json:"loan_history_id"`
+	RenewalDate   time.Time `json:"renewal_date"`
+	OldDueDate    time.Time `json:"old_due_date"`
+	NewDueDate    time.Time `json:"new_due_date"`
+	LibrarianID   int       `json:"librarian_id"`
+	Reason        *string   `json:"reason"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // Таблица бронирования книг
 type Reservation struct {
-	ID               int32            `json:"id"`
-	BookID           int32            `json:"book_id"`
-	ReaderID         int32            `json:"reader_id"`
-	ReservationDate  time.Time        `json:"reservation_date"`
-	ExpirationDate   time.Time        `json:"expiration_date"`
-	Status           pgtype.Text      `json:"status"`
-	PriorityOrder    pgtype.Int4      `json:"priority_order"`
-	NotificationSent pgtype.Bool      `json:"notification_sent"`
-	CreatedAt        pgtype.Timestamp `json:"created_at"`
-	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
+	ID               int64     `json:"id"`
+	BookID           int       `json:"book_id"`
+	ReaderID         int       `json:"reader_id"`
+	ReservationDate  time.Time `json:"reservation_date"`
+	ExpirationDate   time.Time `json:"expiration_date"`
+	Status           string    `json:"status"`
+	PriorityOrder    int       `json:"priority_order"`
+	NotificationSent bool      `json:"notification_sent"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }

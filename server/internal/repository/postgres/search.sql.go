@@ -8,7 +8,7 @@ package postgres
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/govalues/decimal"
 )
 
 const advancedBookSearch = `-- name: AdvancedBookSearch :many
@@ -51,9 +51,9 @@ LIMIT $9 OFFSET $8
 type AdvancedBookSearchParams struct {
 	TitleFilter    string `json:"title_filter"`
 	AuthorFilter   string `json:"author_filter"`
-	YearFilter     int32  `json:"year_filter"`
-	CategoryFilter int32  `json:"category_filter"`
-	HallFilter     int32  `json:"hall_filter"`
+	YearFilter     int    `json:"year_filter"`
+	CategoryFilter int    `json:"category_filter"`
+	HallFilter     int    `json:"hall_filter"`
 	AvailableOnly  bool   `json:"available_only"`
 	SortBy         string `json:"sort_by"`
 	PageOffset     int32  `json:"page_offset"`
@@ -61,19 +61,19 @@ type AdvancedBookSearchParams struct {
 }
 
 type AdvancedBookSearchRow struct {
-	ID                 int32          `json:"id"`
-	Title              string         `json:"title"`
-	Author             string         `json:"author"`
-	PublicationYear    int32          `json:"publication_year"`
-	BookCode           string         `json:"book_code"`
-	Isbn               pgtype.Text    `json:"isbn"`
-	Category           pgtype.Text    `json:"category"`
-	Hall               string         `json:"hall"`
-	TotalCopies        int32          `json:"total_copies"`
-	AvailableCopies    int32          `json:"available_copies"`
-	PopularityScore    pgtype.Int4    `json:"popularity_score"`
-	Rating             pgtype.Numeric `json:"rating"`
-	AvailabilityStatus string         `json:"availability_status"`
+	ID                 int64           `json:"id"`
+	Title              string          `json:"title"`
+	Author             string          `json:"author"`
+	PublicationYear    int             `json:"publication_year"`
+	BookCode           string          `json:"book_code"`
+	Isbn               *string         `json:"isbn"`
+	Category           *string         `json:"category"`
+	Hall               string          `json:"hall"`
+	TotalCopies        int             `json:"total_copies"`
+	AvailableCopies    int             `json:"available_copies"`
+	PopularityScore    int             `json:"popularity_score"`
+	Rating             decimal.Decimal `json:"rating"`
+	AvailabilityStatus string          `json:"availability_status"`
 }
 
 func (q *Queries) AdvancedBookSearch(ctx context.Context, arg AdvancedBookSearchParams) ([]*AdvancedBookSearchRow, error) {
@@ -92,7 +92,7 @@ func (q *Queries) AdvancedBookSearch(ctx context.Context, arg AdvancedBookSearch
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*AdvancedBookSearchRow
+	items := []*AdvancedBookSearchRow{}
 	for rows.Next() {
 		var i AdvancedBookSearchRow
 		if err := rows.Scan(
@@ -146,7 +146,7 @@ LIMIT 20
 
 type GlobalSearchRow struct {
 	Type    string      `json:"type"`
-	ID      int32       `json:"id"`
+	ID      int64       `json:"id"`
 	Name    string      `json:"name"`
 	Details string      `json:"details"`
 	Ticket  interface{} `json:"ticket"`
@@ -158,7 +158,7 @@ func (q *Queries) GlobalSearch(ctx context.Context, searchTerm string) ([]*Globa
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GlobalSearchRow
+	items := []*GlobalSearchRow{}
 	for rows.Next() {
 		var i GlobalSearchRow
 		if err := rows.Scan(

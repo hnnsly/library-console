@@ -7,8 +7,7 @@ package postgres
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"time"
 )
 
 const createOperationLog = `-- name: CreateOperationLog :exec
@@ -20,12 +19,12 @@ INSERT INTO operation_logs (
 `
 
 type CreateOperationLogParams struct {
-	OperationType string      `json:"operation_type"`
-	EntityType    string      `json:"entity_type"`
-	EntityID      int32       `json:"entity_id"`
-	LibrarianID   pgtype.Int4 `json:"librarian_id"`
-	Details       []byte      `json:"details"`
-	Description   pgtype.Text `json:"description"`
+	OperationType string  `json:"operation_type"`
+	EntityType    string  `json:"entity_type"`
+	EntityID      int     `json:"entity_id"`
+	LibrarianID   *int    `json:"librarian_id"`
+	Details       []byte  `json:"details"`
+	Description   *string `json:"description"`
 }
 
 func (q *Queries) CreateOperationLog(ctx context.Context, arg CreateOperationLogParams) error {
@@ -53,21 +52,21 @@ LIMIT $4 OFFSET $3
 
 type GetOperationLogsParams struct {
 	EntityType string `json:"entity_type"`
-	EntityID   int32  `json:"entity_id"`
+	EntityID   int    `json:"entity_id"`
 	PageOffset int32  `json:"page_offset"`
 	PageLimit  int32  `json:"page_limit"`
 }
 
 type GetOperationLogsRow struct {
-	ID            int32            `json:"id"`
-	OperationType string           `json:"operation_type"`
-	EntityType    string           `json:"entity_type"`
-	EntityID      int32            `json:"entity_id"`
-	LibrarianID   pgtype.Int4      `json:"librarian_id"`
-	OperationDate pgtype.Timestamp `json:"operation_date"`
-	Details       []byte           `json:"details"`
-	Description   pgtype.Text      `json:"description"`
-	LibrarianName pgtype.Text      `json:"librarian_name"`
+	ID            int64     `json:"id"`
+	OperationType string    `json:"operation_type"`
+	EntityType    string    `json:"entity_type"`
+	EntityID      int       `json:"entity_id"`
+	LibrarianID   *int      `json:"librarian_id"`
+	OperationDate time.Time `json:"operation_date"`
+	Details       []byte    `json:"details"`
+	Description   *string   `json:"description"`
+	LibrarianName *string   `json:"librarian_name"`
 }
 
 func (q *Queries) GetOperationLogs(ctx context.Context, arg GetOperationLogsParams) ([]*GetOperationLogsRow, error) {
@@ -81,7 +80,7 @@ func (q *Queries) GetOperationLogs(ctx context.Context, arg GetOperationLogsPara
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetOperationLogsRow
+	items := []*GetOperationLogsRow{}
 	for rows.Next() {
 		var i GetOperationLogsRow
 		if err := rows.Scan(
@@ -114,15 +113,15 @@ LIMIT $1
 `
 
 type GetRecentOperationsRow struct {
-	ID            int32            `json:"id"`
-	OperationType string           `json:"operation_type"`
-	EntityType    string           `json:"entity_type"`
-	EntityID      int32            `json:"entity_id"`
-	LibrarianID   pgtype.Int4      `json:"librarian_id"`
-	OperationDate pgtype.Timestamp `json:"operation_date"`
-	Details       []byte           `json:"details"`
-	Description   pgtype.Text      `json:"description"`
-	LibrarianName pgtype.Text      `json:"librarian_name"`
+	ID            int64     `json:"id"`
+	OperationType string    `json:"operation_type"`
+	EntityType    string    `json:"entity_type"`
+	EntityID      int       `json:"entity_id"`
+	LibrarianID   *int      `json:"librarian_id"`
+	OperationDate time.Time `json:"operation_date"`
+	Details       []byte    `json:"details"`
+	Description   *string   `json:"description"`
+	LibrarianName *string   `json:"librarian_name"`
 }
 
 func (q *Queries) GetRecentOperations(ctx context.Context, resultLimit int32) ([]*GetRecentOperationsRow, error) {
@@ -131,7 +130,7 @@ func (q *Queries) GetRecentOperations(ctx context.Context, resultLimit int32) ([
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetRecentOperationsRow
+	items := []*GetRecentOperationsRow{}
 	for rows.Next() {
 		var i GetRecentOperationsRow
 		if err := rows.Scan(

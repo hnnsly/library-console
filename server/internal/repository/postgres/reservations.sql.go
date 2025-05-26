@@ -8,8 +8,6 @@ package postgres
 import (
 	"context"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const cancelReservation = `-- name: CancelReservation :exec
@@ -18,7 +16,7 @@ SET status = 'cancelled', updated_at = NOW()
 WHERE id = $1
 `
 
-func (q *Queries) CancelReservation(ctx context.Context, reservationID int32) error {
+func (q *Queries) CancelReservation(ctx context.Context, reservationID int64) error {
 	_, err := q.db.Exec(ctx, cancelReservation, reservationID)
 	return err
 }
@@ -33,8 +31,8 @@ INSERT INTO reservations (
 `
 
 type CreateReservationParams struct {
-	BookID   int32 `json:"book_id"`
-	ReaderID int32 `json:"reader_id"`
+	BookID   int `json:"book_id"`
+	ReaderID int `json:"reader_id"`
 }
 
 func (q *Queries) CreateReservation(ctx context.Context, arg CreateReservationParams) (*Reservation, error) {
@@ -61,7 +59,7 @@ SET status = 'fulfilled', updated_at = NOW()
 WHERE id = $1
 `
 
-func (q *Queries) FulfillReservation(ctx context.Context, reservationID int32) error {
+func (q *Queries) FulfillReservation(ctx context.Context, reservationID int64) error {
 	_, err := q.db.Exec(ctx, fulfillReservation, reservationID)
 	return err
 }
@@ -80,20 +78,20 @@ ORDER BY res.priority_order
 `
 
 type GetBookQueueRow struct {
-	FullName        string      `json:"full_name"`
-	TicketNumber    string      `json:"ticket_number"`
-	ReservationDate time.Time   `json:"reservation_date"`
-	PriorityOrder   pgtype.Int4 `json:"priority_order"`
-	ExpirationDate  time.Time   `json:"expiration_date"`
+	FullName        string    `json:"full_name"`
+	TicketNumber    string    `json:"ticket_number"`
+	ReservationDate time.Time `json:"reservation_date"`
+	PriorityOrder   int       `json:"priority_order"`
+	ExpirationDate  time.Time `json:"expiration_date"`
 }
 
-func (q *Queries) GetBookQueue(ctx context.Context, bookID int32) ([]*GetBookQueueRow, error) {
+func (q *Queries) GetBookQueue(ctx context.Context, bookID int) ([]*GetBookQueueRow, error) {
 	rows, err := q.db.Query(ctx, getBookQueue, bookID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetBookQueueRow
+	items := []*GetBookQueueRow{}
 	for rows.Next() {
 		var i GetBookQueueRow
 		if err := rows.Scan(
@@ -122,18 +120,18 @@ WHERE res.status = 'active' AND res.expiration_date < CURRENT_DATE
 `
 
 type GetExpiredReservationsRow struct {
-	ID               int32            `json:"id"`
-	BookID           int32            `json:"book_id"`
-	ReaderID         int32            `json:"reader_id"`
-	ReservationDate  time.Time        `json:"reservation_date"`
-	ExpirationDate   time.Time        `json:"expiration_date"`
-	Status           pgtype.Text      `json:"status"`
-	PriorityOrder    pgtype.Int4      `json:"priority_order"`
-	NotificationSent pgtype.Bool      `json:"notification_sent"`
-	CreatedAt        pgtype.Timestamp `json:"created_at"`
-	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
-	FullName         string           `json:"full_name"`
-	Title            string           `json:"title"`
+	ID               int64     `json:"id"`
+	BookID           int       `json:"book_id"`
+	ReaderID         int       `json:"reader_id"`
+	ReservationDate  time.Time `json:"reservation_date"`
+	ExpirationDate   time.Time `json:"expiration_date"`
+	Status           string    `json:"status"`
+	PriorityOrder    int       `json:"priority_order"`
+	NotificationSent bool      `json:"notification_sent"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	FullName         string    `json:"full_name"`
+	Title            string    `json:"title"`
 }
 
 func (q *Queries) GetExpiredReservations(ctx context.Context) ([]*GetExpiredReservationsRow, error) {
@@ -142,7 +140,7 @@ func (q *Queries) GetExpiredReservations(ctx context.Context) ([]*GetExpiredRese
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetExpiredReservationsRow
+	items := []*GetExpiredReservationsRow{}
 	for rows.Next() {
 		var i GetExpiredReservationsRow
 		if err := rows.Scan(
@@ -178,28 +176,28 @@ ORDER BY res.reservation_date DESC
 `
 
 type GetReaderReservationsRow struct {
-	ID               int32            `json:"id"`
-	BookID           int32            `json:"book_id"`
-	ReaderID         int32            `json:"reader_id"`
-	ReservationDate  time.Time        `json:"reservation_date"`
-	ExpirationDate   time.Time        `json:"expiration_date"`
-	Status           pgtype.Text      `json:"status"`
-	PriorityOrder    pgtype.Int4      `json:"priority_order"`
-	NotificationSent pgtype.Bool      `json:"notification_sent"`
-	CreatedAt        pgtype.Timestamp `json:"created_at"`
-	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
-	Title            string           `json:"title"`
-	Author           string           `json:"author"`
-	BookCode         string           `json:"book_code"`
+	ID               int64     `json:"id"`
+	BookID           int       `json:"book_id"`
+	ReaderID         int       `json:"reader_id"`
+	ReservationDate  time.Time `json:"reservation_date"`
+	ExpirationDate   time.Time `json:"expiration_date"`
+	Status           string    `json:"status"`
+	PriorityOrder    int       `json:"priority_order"`
+	NotificationSent bool      `json:"notification_sent"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	Title            string    `json:"title"`
+	Author           string    `json:"author"`
+	BookCode         string    `json:"book_code"`
 }
 
-func (q *Queries) GetReaderReservations(ctx context.Context, readerID int32) ([]*GetReaderReservationsRow, error) {
+func (q *Queries) GetReaderReservations(ctx context.Context, readerID int) ([]*GetReaderReservationsRow, error) {
 	rows, err := q.db.Query(ctx, getReaderReservations, readerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetReaderReservationsRow
+	items := []*GetReaderReservationsRow{}
 	for rows.Next() {
 		var i GetReaderReservationsRow
 		if err := rows.Scan(

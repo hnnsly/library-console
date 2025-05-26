@@ -7,8 +7,6 @@ package postgres
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createLibrarian = `-- name: CreateLibrarian :one
@@ -20,11 +18,11 @@ INSERT INTO librarians (
 `
 
 type CreateLibrarianParams struct {
-	FullName   string      `json:"full_name"`
-	EmployeeID string      `json:"employee_id"`
-	Position   pgtype.Text `json:"position"`
-	Phone      pgtype.Text `json:"phone"`
-	Email      pgtype.Text `json:"email"`
+	FullName   string  `json:"full_name"`
+	EmployeeID string  `json:"employee_id"`
+	Position   string  `json:"position"`
+	Phone      *string `json:"phone"`
+	Email      *string `json:"email"`
 }
 
 func (q *Queries) CreateLibrarian(ctx context.Context, arg CreateLibrarianParams) (*Librarian, error) {
@@ -57,7 +55,7 @@ SET status = 'inactive', updated_at = NOW()
 WHERE id = $1
 `
 
-func (q *Queries) DeactivateLibrarian(ctx context.Context, librarianID int32) error {
+func (q *Queries) DeactivateLibrarian(ctx context.Context, librarianID int64) error {
 	_, err := q.db.Exec(ctx, deactivateLibrarian, librarianID)
 	return err
 }
@@ -72,7 +70,7 @@ func (q *Queries) GetAllLibrarians(ctx context.Context) ([]*Librarian, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*Librarian
+	items := []*Librarian{}
 	for rows.Next() {
 		var i Librarian
 		if err := rows.Scan(
@@ -123,7 +121,7 @@ const getLibrarianByID = `-- name: GetLibrarianByID :one
 SELECT id, full_name, employee_id, position, phone, email, hire_date, status, created_at, updated_at FROM librarians WHERE id = $1
 `
 
-func (q *Queries) GetLibrarianByID(ctx context.Context, librarianID int32) (*Librarian, error) {
+func (q *Queries) GetLibrarianByID(ctx context.Context, librarianID int64) (*Librarian, error) {
 	row := q.db.QueryRow(ctx, getLibrarianByID, librarianID)
 	var i Librarian
 	err := row.Scan(
@@ -153,11 +151,11 @@ RETURNING id, full_name, employee_id, position, phone, email, hire_date, status,
 `
 
 type UpdateLibrarianParams struct {
-	FullName    string      `json:"full_name"`
-	Position    pgtype.Text `json:"position"`
-	Phone       pgtype.Text `json:"phone"`
-	Email       pgtype.Text `json:"email"`
-	LibrarianID int32       `json:"librarian_id"`
+	FullName    string  `json:"full_name"`
+	Position    string  `json:"position"`
+	Phone       *string `json:"phone"`
+	Email       *string `json:"email"`
+	LibrarianID int64   `json:"librarian_id"`
 }
 
 func (q *Queries) UpdateLibrarian(ctx context.Context, arg UpdateLibrarianParams) (*Librarian, error) {

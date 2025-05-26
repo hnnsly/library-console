@@ -9,7 +9,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/govalues/decimal"
 )
 
 const calculateOverdueFine = `-- name: CalculateOverdueFine :one
@@ -23,11 +23,11 @@ WHERE id = $2
 
 type CalculateOverdueFineParams struct {
 	DailyFineRate time.Time `json:"daily_fine_rate"`
-	LoanHistoryID int32     `json:"loan_history_id"`
+	LoanHistoryID int64     `json:"loan_history_id"`
 }
 
 type CalculateOverdueFineRow struct {
-	LoanHistoryID  int32       `json:"loan_history_id"`
+	LoanHistoryID  int64       `json:"loan_history_id"`
 	OverdueDays    interface{} `json:"overdue_days"`
 	CalculatedFine int32       `json:"calculated_fine"`
 }
@@ -48,12 +48,12 @@ INSERT INTO fines (
 `
 
 type CreateFineParams struct {
-	LoanHistoryID int32          `json:"loan_history_id"`
-	ReaderID      int32          `json:"reader_id"`
-	FineType      string         `json:"fine_type"`
-	Amount        pgtype.Numeric `json:"amount"`
-	Description   pgtype.Text    `json:"description"`
-	LibrarianID   int32          `json:"librarian_id"`
+	LoanHistoryID int             `json:"loan_history_id"`
+	ReaderID      int             `json:"reader_id"`
+	FineType      string          `json:"fine_type"`
+	Amount        decimal.Decimal `json:"amount"`
+	Description   *string         `json:"description"`
+	LibrarianID   int             `json:"librarian_id"`
 }
 
 func (q *Queries) CreateFine(ctx context.Context, arg CreateFineParams) (*Fine, error) {
@@ -99,12 +99,12 @@ ORDER BY total_debt DESC
 `
 
 type GetDebtorReadersRow struct {
-	FullName     string      `json:"full_name"`
-	TicketNumber string      `json:"ticket_number"`
-	Phone        pgtype.Text `json:"phone"`
-	Email        pgtype.Text `json:"email"`
-	TotalDebt    int64       `json:"total_debt"`
-	FineCount    int64       `json:"fine_count"`
+	FullName     string  `json:"full_name"`
+	TicketNumber string  `json:"ticket_number"`
+	Phone        *string `json:"phone"`
+	Email        *string `json:"email"`
+	TotalDebt    int64   `json:"total_debt"`
+	FineCount    int64   `json:"fine_count"`
 }
 
 func (q *Queries) GetDebtorReaders(ctx context.Context) ([]*GetDebtorReadersRow, error) {
@@ -113,7 +113,7 @@ func (q *Queries) GetDebtorReaders(ctx context.Context) ([]*GetDebtorReadersRow,
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetDebtorReadersRow
+	items := []*GetDebtorReadersRow{}
 	for rows.Next() {
 		var i GetDebtorReadersRow
 		if err := rows.Scan(
@@ -144,31 +144,31 @@ ORDER BY f.fine_date DESC
 `
 
 type GetReaderFinesRow struct {
-	ID            int32            `json:"id"`
-	LoanHistoryID int32            `json:"loan_history_id"`
-	ReaderID      int32            `json:"reader_id"`
-	FineType      string           `json:"fine_type"`
-	Amount        pgtype.Numeric   `json:"amount"`
-	FineDate      time.Time        `json:"fine_date"`
-	PaymentDate   pgtype.Date      `json:"payment_date"`
-	Status        pgtype.Text      `json:"status"`
-	Description   pgtype.Text      `json:"description"`
-	LibrarianID   int32            `json:"librarian_id"`
-	CreatedAt     pgtype.Timestamp `json:"created_at"`
-	UpdatedAt     pgtype.Timestamp `json:"updated_at"`
-	LoanDate      time.Time        `json:"loan_date"`
-	DueDate       time.Time        `json:"due_date"`
-	Title         string           `json:"title"`
-	Author        string           `json:"author"`
+	ID            int64           `json:"id"`
+	LoanHistoryID int             `json:"loan_history_id"`
+	ReaderID      int             `json:"reader_id"`
+	FineType      string          `json:"fine_type"`
+	Amount        decimal.Decimal `json:"amount"`
+	FineDate      time.Time       `json:"fine_date"`
+	PaymentDate   *time.Time      `json:"payment_date"`
+	Status        string          `json:"status"`
+	Description   *string         `json:"description"`
+	LibrarianID   int             `json:"librarian_id"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+	LoanDate      time.Time       `json:"loan_date"`
+	DueDate       time.Time       `json:"due_date"`
+	Title         string          `json:"title"`
+	Author        string          `json:"author"`
 }
 
-func (q *Queries) GetReaderFines(ctx context.Context, readerID int32) ([]*GetReaderFinesRow, error) {
+func (q *Queries) GetReaderFines(ctx context.Context, readerID int) ([]*GetReaderFinesRow, error) {
 	rows, err := q.db.Query(ctx, getReaderFines, readerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetReaderFinesRow
+	items := []*GetReaderFinesRow{}
 	for rows.Next() {
 		var i GetReaderFinesRow
 		if err := rows.Scan(
@@ -215,22 +215,22 @@ ORDER BY f.fine_date DESC
 `
 
 type GetUnpaidFinesRow struct {
-	ID            int32            `json:"id"`
-	LoanHistoryID int32            `json:"loan_history_id"`
-	ReaderID      int32            `json:"reader_id"`
-	FineType      string           `json:"fine_type"`
-	Amount        pgtype.Numeric   `json:"amount"`
-	FineDate      time.Time        `json:"fine_date"`
-	PaymentDate   pgtype.Date      `json:"payment_date"`
-	Status        pgtype.Text      `json:"status"`
-	Description   pgtype.Text      `json:"description"`
-	LibrarianID   int32            `json:"librarian_id"`
-	CreatedAt     pgtype.Timestamp `json:"created_at"`
-	UpdatedAt     pgtype.Timestamp `json:"updated_at"`
-	ReaderName    string           `json:"reader_name"`
-	TicketNumber  string           `json:"ticket_number"`
-	Phone         pgtype.Text      `json:"phone"`
-	BookTitle     string           `json:"book_title"`
+	ID            int64           `json:"id"`
+	LoanHistoryID int             `json:"loan_history_id"`
+	ReaderID      int             `json:"reader_id"`
+	FineType      string          `json:"fine_type"`
+	Amount        decimal.Decimal `json:"amount"`
+	FineDate      time.Time       `json:"fine_date"`
+	PaymentDate   *time.Time      `json:"payment_date"`
+	Status        string          `json:"status"`
+	Description   *string         `json:"description"`
+	LibrarianID   int             `json:"librarian_id"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+	ReaderName    string          `json:"reader_name"`
+	TicketNumber  string          `json:"ticket_number"`
+	Phone         *string         `json:"phone"`
+	BookTitle     string          `json:"book_title"`
 }
 
 func (q *Queries) GetUnpaidFines(ctx context.Context) ([]*GetUnpaidFinesRow, error) {
@@ -239,7 +239,7 @@ func (q *Queries) GetUnpaidFines(ctx context.Context) ([]*GetUnpaidFinesRow, err
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetUnpaidFinesRow
+	items := []*GetUnpaidFinesRow{}
 	for rows.Next() {
 		var i GetUnpaidFinesRow
 		if err := rows.Scan(
@@ -276,7 +276,7 @@ SET status = 'paid', payment_date = CURRENT_DATE, updated_at = NOW()
 WHERE id = $1
 `
 
-func (q *Queries) PayFine(ctx context.Context, fineID int32) error {
+func (q *Queries) PayFine(ctx context.Context, fineID int64) error {
 	_, err := q.db.Exec(ctx, payFine, fineID)
 	return err
 }
@@ -287,7 +287,7 @@ SET status = 'waived', updated_at = NOW()
 WHERE id = $1
 `
 
-func (q *Queries) WaiveFine(ctx context.Context, fineID int32) error {
+func (q *Queries) WaiveFine(ctx context.Context, fineID int64) error {
 	_, err := q.db.Exec(ctx, waiveFine, fineID)
 	return err
 }

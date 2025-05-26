@@ -9,7 +9,6 @@ import (
 	"context"
 
 	"github.com/govalues/decimal"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getAllHalls = `-- name: GetAllHalls :many
@@ -23,15 +22,15 @@ ORDER BY name
 `
 
 type GetAllHallsRow struct {
-	ID               int32           `json:"id"`
+	ID               int64           `json:"id"`
 	Name             string          `json:"name"`
 	Specialization   string          `json:"specialization"`
-	TotalSeats       int32           `json:"total_seats"`
-	OccupiedSeats    int32           `json:"occupied_seats"`
+	TotalSeats       int             `json:"total_seats"`
+	OccupiedSeats    int             `json:"occupied_seats"`
 	FreeSeats        int32           `json:"free_seats"`
 	OccupancyPercent decimal.Decimal `json:"occupancy_percent"`
-	WorkingHours     pgtype.Text     `json:"working_hours"`
-	Status           pgtype.Text     `json:"status"`
+	WorkingHours     string          `json:"working_hours"`
+	Status           string          `json:"status"`
 }
 
 func (q *Queries) GetAllHalls(ctx context.Context) ([]*GetAllHallsRow, error) {
@@ -40,7 +39,7 @@ func (q *Queries) GetAllHalls(ctx context.Context) ([]*GetAllHallsRow, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetAllHallsRow
+	items := []*GetAllHallsRow{}
 	for rows.Next() {
 		var i GetAllHallsRow
 		if err := rows.Scan(
@@ -68,7 +67,7 @@ const getHallByID = `-- name: GetHallByID :one
 SELECT id, name, library_name, specialization, total_seats, occupied_seats, working_hours, equipment, status, visit_statistics, average_occupancy, created_at, updated_at FROM halls WHERE id = $1
 `
 
-func (q *Queries) GetHallByID(ctx context.Context, hallID int32) (*Hall, error) {
+func (q *Queries) GetHallByID(ctx context.Context, hallID int64) (*Hall, error) {
 	row := q.db.QueryRow(ctx, getHallByID, hallID)
 	var i Hall
 	err := row.Scan(
@@ -121,7 +120,7 @@ func (q *Queries) GetHallStatistics(ctx context.Context) ([]*GetHallStatisticsRo
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetHallStatisticsRow
+	items := []*GetHallStatisticsRow{}
 	for rows.Next() {
 		var i GetHallStatisticsRow
 		if err := rows.Scan(
@@ -156,7 +155,7 @@ updated_at = NOW()
 WHERE id = $1
 `
 
-func (q *Queries) UpdateHallOccupancy(ctx context.Context, hallID int32) error {
+func (q *Queries) UpdateHallOccupancy(ctx context.Context, hallID int) error {
 	_, err := q.db.Exec(ctx, updateHallOccupancy, hallID)
 	return err
 }

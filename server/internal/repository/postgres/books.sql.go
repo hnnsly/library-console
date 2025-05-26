@@ -7,8 +7,9 @@ package postgres
 
 import (
 	"context"
+	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/govalues/decimal"
 )
 
 const advancedSearchBooks = `-- name: AdvancedSearchBooks :many
@@ -51,9 +52,9 @@ LIMIT $9 OFFSET $8
 type AdvancedSearchBooksParams struct {
 	TitleFilter    string `json:"title_filter"`
 	AuthorFilter   string `json:"author_filter"`
-	YearFilter     int32  `json:"year_filter"`
-	CategoryFilter int32  `json:"category_filter"`
-	HallFilter     int32  `json:"hall_filter"`
+	YearFilter     int    `json:"year_filter"`
+	CategoryFilter int    `json:"category_filter"`
+	HallFilter     int    `json:"hall_filter"`
 	AvailableOnly  bool   `json:"available_only"`
 	SortBy         string `json:"sort_by"`
 	PageOffset     int32  `json:"page_offset"`
@@ -61,19 +62,19 @@ type AdvancedSearchBooksParams struct {
 }
 
 type AdvancedSearchBooksRow struct {
-	ID                 int32          `json:"id"`
-	Title              string         `json:"title"`
-	Author             string         `json:"author"`
-	PublicationYear    int32          `json:"publication_year"`
-	BookCode           string         `json:"book_code"`
-	Isbn               pgtype.Text    `json:"isbn"`
-	Category           pgtype.Text    `json:"category"`
-	Hall               string         `json:"hall"`
-	TotalCopies        int32          `json:"total_copies"`
-	AvailableCopies    int32          `json:"available_copies"`
-	PopularityScore    pgtype.Int4    `json:"popularity_score"`
-	Rating             pgtype.Numeric `json:"rating"`
-	AvailabilityStatus string         `json:"availability_status"`
+	ID                 int64           `json:"id"`
+	Title              string          `json:"title"`
+	Author             string          `json:"author"`
+	PublicationYear    int             `json:"publication_year"`
+	BookCode           string          `json:"book_code"`
+	Isbn               *string         `json:"isbn"`
+	Category           *string         `json:"category"`
+	Hall               string          `json:"hall"`
+	TotalCopies        int             `json:"total_copies"`
+	AvailableCopies    int             `json:"available_copies"`
+	PopularityScore    int             `json:"popularity_score"`
+	Rating             decimal.Decimal `json:"rating"`
+	AvailabilityStatus string          `json:"availability_status"`
 }
 
 func (q *Queries) AdvancedSearchBooks(ctx context.Context, arg AdvancedSearchBooksParams) ([]*AdvancedSearchBooksRow, error) {
@@ -92,7 +93,7 @@ func (q *Queries) AdvancedSearchBooks(ctx context.Context, arg AdvancedSearchBoo
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*AdvancedSearchBooksRow
+	items := []*AdvancedSearchBooksRow{}
 	for rows.Next() {
 		var i AdvancedSearchBooksRow
 		if err := rows.Scan(
@@ -133,17 +134,17 @@ INSERT INTO books (
 `
 
 type CreateBookParams struct {
-	Title           string      `json:"title"`
-	Author          string      `json:"author"`
-	PublicationYear int32       `json:"publication_year"`
-	Isbn            pgtype.Text `json:"isbn"`
-	BookCode        string      `json:"book_code"`
-	CategoryID      pgtype.Int4 `json:"category_id"`
-	HallID          int32       `json:"hall_id"`
-	TotalCopies     int32       `json:"total_copies"`
-	AvailableCopies int32       `json:"available_copies"`
-	ConditionStatus pgtype.Text `json:"condition_status"`
-	LocationInfo    pgtype.Text `json:"location_info"`
+	Title           string  `json:"title"`
+	Author          string  `json:"author"`
+	PublicationYear int     `json:"publication_year"`
+	Isbn            *string `json:"isbn"`
+	BookCode        string  `json:"book_code"`
+	CategoryID      *int    `json:"category_id"`
+	HallID          int     `json:"hall_id"`
+	TotalCopies     int     `json:"total_copies"`
+	AvailableCopies int     `json:"available_copies"`
+	ConditionStatus string  `json:"condition_status"`
+	LocationInfo    *string `json:"location_info"`
 }
 
 func (q *Queries) CreateBook(ctx context.Context, arg CreateBookParams) (*Book, error) {
@@ -197,28 +198,28 @@ LIMIT $1
 `
 
 type GetAvailableBooksRow struct {
-	ID              int32            `json:"id"`
-	Title           string           `json:"title"`
-	Author          string           `json:"author"`
-	PublicationYear int32            `json:"publication_year"`
-	Isbn            pgtype.Text      `json:"isbn"`
-	BookCode        string           `json:"book_code"`
-	CategoryID      pgtype.Int4      `json:"category_id"`
-	HallID          int32            `json:"hall_id"`
-	TotalCopies     int32            `json:"total_copies"`
-	AvailableCopies int32            `json:"available_copies"`
-	ConditionStatus pgtype.Text      `json:"condition_status"`
-	LocationInfo    pgtype.Text      `json:"location_info"`
-	MaxLoanDays     pgtype.Int4      `json:"max_loan_days"`
-	MaxRenewals     pgtype.Int4      `json:"max_renewals"`
-	PopularityScore pgtype.Int4      `json:"popularity_score"`
-	Rating          pgtype.Numeric   `json:"rating"`
-	AcquisitionDate pgtype.Date      `json:"acquisition_date"`
-	Status          pgtype.Text      `json:"status"`
-	CreatedAt       pgtype.Timestamp `json:"created_at"`
-	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
-	CategoryName    pgtype.Text      `json:"category_name"`
-	HallName        string           `json:"hall_name"`
+	ID              int64           `json:"id"`
+	Title           string          `json:"title"`
+	Author          string          `json:"author"`
+	PublicationYear int             `json:"publication_year"`
+	Isbn            *string         `json:"isbn"`
+	BookCode        string          `json:"book_code"`
+	CategoryID      *int            `json:"category_id"`
+	HallID          int             `json:"hall_id"`
+	TotalCopies     int             `json:"total_copies"`
+	AvailableCopies int             `json:"available_copies"`
+	ConditionStatus string          `json:"condition_status"`
+	LocationInfo    *string         `json:"location_info"`
+	MaxLoanDays     int             `json:"max_loan_days"`
+	MaxRenewals     int             `json:"max_renewals"`
+	PopularityScore int             `json:"popularity_score"`
+	Rating          decimal.Decimal `json:"rating"`
+	AcquisitionDate time.Time       `json:"acquisition_date"`
+	Status          string          `json:"status"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	CategoryName    *string         `json:"category_name"`
+	HallName        string          `json:"hall_name"`
 }
 
 func (q *Queries) GetAvailableBooks(ctx context.Context, resultLimit int32) ([]*GetAvailableBooksRow, error) {
@@ -227,7 +228,7 @@ func (q *Queries) GetAvailableBooks(ctx context.Context, resultLimit int32) ([]*
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetAvailableBooksRow
+	items := []*GetAvailableBooksRow{}
 	for rows.Next() {
 		var i GetAvailableBooksRow
 		if err := rows.Scan(
@@ -273,28 +274,28 @@ WHERE b.book_code = $1
 `
 
 type GetBookByCodeRow struct {
-	ID              int32            `json:"id"`
-	Title           string           `json:"title"`
-	Author          string           `json:"author"`
-	PublicationYear int32            `json:"publication_year"`
-	Isbn            pgtype.Text      `json:"isbn"`
-	BookCode        string           `json:"book_code"`
-	CategoryID      pgtype.Int4      `json:"category_id"`
-	HallID          int32            `json:"hall_id"`
-	TotalCopies     int32            `json:"total_copies"`
-	AvailableCopies int32            `json:"available_copies"`
-	ConditionStatus pgtype.Text      `json:"condition_status"`
-	LocationInfo    pgtype.Text      `json:"location_info"`
-	MaxLoanDays     pgtype.Int4      `json:"max_loan_days"`
-	MaxRenewals     pgtype.Int4      `json:"max_renewals"`
-	PopularityScore pgtype.Int4      `json:"popularity_score"`
-	Rating          pgtype.Numeric   `json:"rating"`
-	AcquisitionDate pgtype.Date      `json:"acquisition_date"`
-	Status          pgtype.Text      `json:"status"`
-	CreatedAt       pgtype.Timestamp `json:"created_at"`
-	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
-	CategoryName    pgtype.Text      `json:"category_name"`
-	HallName        string           `json:"hall_name"`
+	ID              int64           `json:"id"`
+	Title           string          `json:"title"`
+	Author          string          `json:"author"`
+	PublicationYear int             `json:"publication_year"`
+	Isbn            *string         `json:"isbn"`
+	BookCode        string          `json:"book_code"`
+	CategoryID      *int            `json:"category_id"`
+	HallID          int             `json:"hall_id"`
+	TotalCopies     int             `json:"total_copies"`
+	AvailableCopies int             `json:"available_copies"`
+	ConditionStatus string          `json:"condition_status"`
+	LocationInfo    *string         `json:"location_info"`
+	MaxLoanDays     int             `json:"max_loan_days"`
+	MaxRenewals     int             `json:"max_renewals"`
+	PopularityScore int             `json:"popularity_score"`
+	Rating          decimal.Decimal `json:"rating"`
+	AcquisitionDate time.Time       `json:"acquisition_date"`
+	Status          string          `json:"status"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	CategoryName    *string         `json:"category_name"`
+	HallName        string          `json:"hall_name"`
 }
 
 func (q *Queries) GetBookByCode(ctx context.Context, bookCode string) (*GetBookByCodeRow, error) {
@@ -336,31 +337,31 @@ WHERE b.id = $1
 `
 
 type GetBookByIDRow struct {
-	ID              int32            `json:"id"`
-	Title           string           `json:"title"`
-	Author          string           `json:"author"`
-	PublicationYear int32            `json:"publication_year"`
-	Isbn            pgtype.Text      `json:"isbn"`
-	BookCode        string           `json:"book_code"`
-	CategoryID      pgtype.Int4      `json:"category_id"`
-	HallID          int32            `json:"hall_id"`
-	TotalCopies     int32            `json:"total_copies"`
-	AvailableCopies int32            `json:"available_copies"`
-	ConditionStatus pgtype.Text      `json:"condition_status"`
-	LocationInfo    pgtype.Text      `json:"location_info"`
-	MaxLoanDays     pgtype.Int4      `json:"max_loan_days"`
-	MaxRenewals     pgtype.Int4      `json:"max_renewals"`
-	PopularityScore pgtype.Int4      `json:"popularity_score"`
-	Rating          pgtype.Numeric   `json:"rating"`
-	AcquisitionDate pgtype.Date      `json:"acquisition_date"`
-	Status          pgtype.Text      `json:"status"`
-	CreatedAt       pgtype.Timestamp `json:"created_at"`
-	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
-	CategoryName    pgtype.Text      `json:"category_name"`
-	HallName        string           `json:"hall_name"`
+	ID              int64           `json:"id"`
+	Title           string          `json:"title"`
+	Author          string          `json:"author"`
+	PublicationYear int             `json:"publication_year"`
+	Isbn            *string         `json:"isbn"`
+	BookCode        string          `json:"book_code"`
+	CategoryID      *int            `json:"category_id"`
+	HallID          int             `json:"hall_id"`
+	TotalCopies     int             `json:"total_copies"`
+	AvailableCopies int             `json:"available_copies"`
+	ConditionStatus string          `json:"condition_status"`
+	LocationInfo    *string         `json:"location_info"`
+	MaxLoanDays     int             `json:"max_loan_days"`
+	MaxRenewals     int             `json:"max_renewals"`
+	PopularityScore int             `json:"popularity_score"`
+	Rating          decimal.Decimal `json:"rating"`
+	AcquisitionDate time.Time       `json:"acquisition_date"`
+	Status          string          `json:"status"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	CategoryName    *string         `json:"category_name"`
+	HallName        string          `json:"hall_name"`
 }
 
-func (q *Queries) GetBookByID(ctx context.Context, bookID int32) (*GetBookByIDRow, error) {
+func (q *Queries) GetBookByID(ctx context.Context, bookID int64) (*GetBookByIDRow, error) {
 	row := q.db.QueryRow(ctx, getBookByID, bookID)
 	var i GetBookByIDRow
 	err := row.Scan(
@@ -399,8 +400,8 @@ WHERE b.author ILIKE '%' || $1 || '%' AND b.hall_id = $2
 `
 
 type GetBooksByAuthorInHallParams struct {
-	Author pgtype.Text `json:"author"`
-	HallID int32       `json:"hall_id"`
+	Author *string `json:"author"`
+	HallID int     `json:"hall_id"`
 }
 
 type GetBooksByAuthorInHallRow struct {
@@ -426,11 +427,11 @@ ORDER BY r.full_name
 `
 
 type GetBooksWithSingleCopyRow struct {
-	FullName     string      `json:"full_name"`
-	TicketNumber string      `json:"ticket_number"`
-	Phone        pgtype.Text `json:"phone"`
-	Title        string      `json:"title"`
-	Author       string      `json:"author"`
+	FullName     string  `json:"full_name"`
+	TicketNumber string  `json:"ticket_number"`
+	Phone        *string `json:"phone"`
+	Title        string  `json:"title"`
+	Author       string  `json:"author"`
 }
 
 func (q *Queries) GetBooksWithSingleCopy(ctx context.Context) ([]*GetBooksWithSingleCopyRow, error) {
@@ -439,7 +440,7 @@ func (q *Queries) GetBooksWithSingleCopy(ctx context.Context) ([]*GetBooksWithSi
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetBooksWithSingleCopyRow
+	items := []*GetBooksWithSingleCopyRow{}
 	for rows.Next() {
 		var i GetBooksWithSingleCopyRow
 		if err := rows.Scan(
@@ -476,12 +477,12 @@ LIMIT $1
 `
 
 type GetPopularBooksRow struct {
-	Title           string      `json:"title"`
-	Author          string      `json:"author"`
-	BookCode        string      `json:"book_code"`
-	LoanCount       int64       `json:"loan_count"`
-	PopularityScore pgtype.Int4 `json:"popularity_score"`
-	AvgRating       float64     `json:"avg_rating"`
+	Title           string  `json:"title"`
+	Author          string  `json:"author"`
+	BookCode        string  `json:"book_code"`
+	LoanCount       int64   `json:"loan_count"`
+	PopularityScore int     `json:"popularity_score"`
+	AvgRating       float64 `json:"avg_rating"`
 }
 
 func (q *Queries) GetPopularBooks(ctx context.Context, resultLimit int32) ([]*GetPopularBooksRow, error) {
@@ -490,7 +491,7 @@ func (q *Queries) GetPopularBooks(ctx context.Context, resultLimit int32) ([]*Ge
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetPopularBooksRow
+	items := []*GetPopularBooksRow{}
 	for rows.Next() {
 		var i GetPopularBooksRow
 		if err := rows.Scan(
@@ -520,11 +521,11 @@ LIMIT $1
 `
 
 type GetTopRatedBooksRow struct {
-	Title           string         `json:"title"`
-	Author          string         `json:"author"`
-	Rating          pgtype.Numeric `json:"rating"`
-	PopularityScore pgtype.Int4    `json:"popularity_score"`
-	BookCode        string         `json:"book_code"`
+	Title           string          `json:"title"`
+	Author          string          `json:"author"`
+	Rating          decimal.Decimal `json:"rating"`
+	PopularityScore int             `json:"popularity_score"`
+	BookCode        string          `json:"book_code"`
 }
 
 func (q *Queries) GetTopRatedBooks(ctx context.Context, resultLimit int32) ([]*GetTopRatedBooksRow, error) {
@@ -533,7 +534,7 @@ func (q *Queries) GetTopRatedBooks(ctx context.Context, resultLimit int32) ([]*G
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetTopRatedBooksRow
+	items := []*GetTopRatedBooksRow{}
 	for rows.Next() {
 		var i GetTopRatedBooksRow
 		if err := rows.Scan(
@@ -575,35 +576,35 @@ type SearchBooksParams struct {
 	Author     string `json:"author"`
 	BookCode   string `json:"book_code"`
 	Isbn       string `json:"isbn"`
-	CategoryID int32  `json:"category_id"`
-	HallID     int32  `json:"hall_id"`
+	CategoryID int    `json:"category_id"`
+	HallID     int    `json:"hall_id"`
 	PageOffset int32  `json:"page_offset"`
 	PageLimit  int32  `json:"page_limit"`
 }
 
 type SearchBooksRow struct {
-	ID              int32            `json:"id"`
-	Title           string           `json:"title"`
-	Author          string           `json:"author"`
-	PublicationYear int32            `json:"publication_year"`
-	Isbn            pgtype.Text      `json:"isbn"`
-	BookCode        string           `json:"book_code"`
-	CategoryID      pgtype.Int4      `json:"category_id"`
-	HallID          int32            `json:"hall_id"`
-	TotalCopies     int32            `json:"total_copies"`
-	AvailableCopies int32            `json:"available_copies"`
-	ConditionStatus pgtype.Text      `json:"condition_status"`
-	LocationInfo    pgtype.Text      `json:"location_info"`
-	MaxLoanDays     pgtype.Int4      `json:"max_loan_days"`
-	MaxRenewals     pgtype.Int4      `json:"max_renewals"`
-	PopularityScore pgtype.Int4      `json:"popularity_score"`
-	Rating          pgtype.Numeric   `json:"rating"`
-	AcquisitionDate pgtype.Date      `json:"acquisition_date"`
-	Status          pgtype.Text      `json:"status"`
-	CreatedAt       pgtype.Timestamp `json:"created_at"`
-	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
-	CategoryName    pgtype.Text      `json:"category_name"`
-	HallName        string           `json:"hall_name"`
+	ID              int64           `json:"id"`
+	Title           string          `json:"title"`
+	Author          string          `json:"author"`
+	PublicationYear int             `json:"publication_year"`
+	Isbn            *string         `json:"isbn"`
+	BookCode        string          `json:"book_code"`
+	CategoryID      *int            `json:"category_id"`
+	HallID          int             `json:"hall_id"`
+	TotalCopies     int             `json:"total_copies"`
+	AvailableCopies int             `json:"available_copies"`
+	ConditionStatus string          `json:"condition_status"`
+	LocationInfo    *string         `json:"location_info"`
+	MaxLoanDays     int             `json:"max_loan_days"`
+	MaxRenewals     int             `json:"max_renewals"`
+	PopularityScore int             `json:"popularity_score"`
+	Rating          decimal.Decimal `json:"rating"`
+	AcquisitionDate time.Time       `json:"acquisition_date"`
+	Status          string          `json:"status"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	CategoryName    *string         `json:"category_name"`
+	HallName        string          `json:"hall_name"`
 }
 
 func (q *Queries) SearchBooks(ctx context.Context, arg SearchBooksParams) ([]*SearchBooksRow, error) {
@@ -621,7 +622,7 @@ func (q *Queries) SearchBooks(ctx context.Context, arg SearchBooksParams) ([]*Se
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*SearchBooksRow
+	items := []*SearchBooksRow{}
 	for rows.Next() {
 		var i SearchBooksRow
 		if err := rows.Scan(
@@ -667,9 +668,9 @@ WHERE id = $3
 `
 
 type UpdateBookAvailabilityParams struct {
-	AvailableCopies int32       `json:"available_copies"`
-	PopularityScore pgtype.Int4 `json:"popularity_score"`
-	BookID          int32       `json:"book_id"`
+	AvailableCopies int   `json:"available_copies"`
+	PopularityScore int   `json:"popularity_score"`
+	BookID          int64 `json:"book_id"`
 }
 
 func (q *Queries) UpdateBookAvailability(ctx context.Context, arg UpdateBookAvailabilityParams) error {
@@ -686,9 +687,9 @@ WHERE id = $3
 `
 
 type UpdateBookCopiesParams struct {
-	TotalCopies     int32 `json:"total_copies"`
-	AvailableCopies int32 `json:"available_copies"`
-	BookID          int32 `json:"book_id"`
+	TotalCopies     int   `json:"total_copies"`
+	AvailableCopies int   `json:"available_copies"`
+	BookID          int64 `json:"book_id"`
 }
 
 func (q *Queries) UpdateBookCopies(ctx context.Context, arg UpdateBookCopiesParams) error {
@@ -704,7 +705,7 @@ SET total_copies = total_copies - 1,
 WHERE id = $1 AND total_copies > 0
 `
 
-func (q *Queries) WriteOffBook(ctx context.Context, bookID int32) error {
+func (q *Queries) WriteOffBook(ctx context.Context, bookID int64) error {
 	_, err := q.db.Exec(ctx, writeOffBook, bookID)
 	return err
 }
