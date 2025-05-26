@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Service
+  postgres:
+    image: postgres:15-alpine
+    container_name: pharmacy-postgres
+    environment:
+      POSTGRES_USER: pharmacy_user
+      POSTGRES_PASSWORD: pharmacy_password
+      POSTGRES_DB: pharmacy_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./.data/postgres-data:/var/lib/postgresql/data
+      - ./server/sql/schema:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - pharmacy-network
+
+  # Redis Service
+  redis:
+    image: redis:7-alpine
+    container_name: pharmacy-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./.data/redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - pharmacy-network
+
+  # Main Application Service
+  app:
+    build:
+      context: ./server
+      dockerfile: cmd/Dockerfile
+    container_name: pharmacy-console
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./server/config.yml:/app/config.yml
+    ports:
+      - "8080:8080"  # Adjust port as needed based on your config
+    networks:
+      - pharmacy-network
+    restart: unless-stopped
+
+networks:
+  pharmacy-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+
