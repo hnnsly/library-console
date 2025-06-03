@@ -10,26 +10,27 @@ import (
 	"time"
 
 	"github.com/govalues/decimal"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const calculateOverdueFine = `-- name: CalculateOverdueFine :one
 SELECT
     id as loan_history_id,
-    GREATEST(0, EXTRACT(DAYS FROM (CURRENT_DATE - due_date))::int) as overdue_days,
-    GREATEST(0, EXTRACT(DAYS FROM (CURRENT_DATE - due_date))::int) * $1 as calculated_fine
+    GREATEST(0, EXTRACT(DAYS FROM (CURRENT_DATE - due_date)))::int as overdue_days,
+    (GREATEST(0, EXTRACT(DAYS FROM (CURRENT_DATE - due_date))) * $1::numeric)::numeric as calculated_fine
 FROM loan_history
 WHERE id = $2
 `
 
 type CalculateOverdueFineParams struct {
-	DailyFineRate time.Time `json:"daily_fine_rate"`
-	LoanHistoryID int64     `json:"loan_history_id"`
+	DailyFineRate pgtype.Numeric `json:"daily_fine_rate"`
+	LoanHistoryID int64          `json:"loan_history_id"`
 }
 
 type CalculateOverdueFineRow struct {
-	LoanHistoryID  int64       `json:"loan_history_id"`
-	OverdueDays    interface{} `json:"overdue_days"`
-	CalculatedFine int32       `json:"calculated_fine"`
+	LoanHistoryID  int64          `json:"loan_history_id"`
+	OverdueDays    int            `json:"overdue_days"`
+	CalculatedFine pgtype.Numeric `json:"calculated_fine"`
 }
 
 func (q *Queries) CalculateOverdueFine(ctx context.Context, arg CalculateOverdueFineParams) (*CalculateOverdueFineRow, error) {

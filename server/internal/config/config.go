@@ -8,15 +8,15 @@ import (
 )
 
 type Config struct {
-	Log             *LogConfig             `mapstructure:"log"`
-	Db              *DBConfig              `mapstructure:"db"`
-	Rd              *RedisConfig           `mapstructure:"rd"`
-	PharmacyService *PharmacyServiceConfig `mapstructure:"pharmacy_service"`
+	Log            *LogConfig            `mapstructure:"log"`
+	Db             *DBConfig             `mapstructure:"db"`
+	Rd             *RedisConfig          `mapstructure:"rd"`
+	LibraryService *LibraryServiceConfig `mapstructure:"library_service"`
 }
 
 type LogConfig struct {
-	Level  string `mapstructure:"level"`
-	Format string `mapstructure:"format"`
+	Level string `mapstructure:"level"`
+	File  string `mapstructure:"file"`
 }
 
 type DBConfig struct {
@@ -41,7 +41,7 @@ type RedisConfig struct {
 	CacheTTLSeconds int    `mapstructure:"cache_ttl_seconds"`
 }
 
-type PharmacyServiceConfig struct {
+type LibraryServiceConfig struct {
 	Port int `mapstructure:"port"`
 }
 

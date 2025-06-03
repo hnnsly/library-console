@@ -1,14 +1,13 @@
-version: '3.8'
-
+name: library
 services:
   # PostgreSQL Service
   postgres:
     image: postgres:15-alpine
-    container_name: pharmacy-postgres
+    container_name: postgres
     environment:
-      POSTGRES_USER: pharmacy_user
-      POSTGRES_PASSWORD: pharmacy_password
-      POSTGRES_DB: pharmacy_db
+      POSTGRES_USER: library
+      POSTGRES_PASSWORD: library_password
+      POSTGRES_DB: library_db
     ports:
       - "5432:5432"
     volumes:
@@ -21,12 +20,12 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - pharmacy-network
+      - library-net
 
   # Redis Service
   redis:
     image: redis:7-alpine
-    container_name: pharmacy-redis
+    container_name: redis
     ports:
       - "6379:6379"
     volumes:
@@ -38,14 +37,14 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - pharmacy-network
+      - library-net
 
   # Main Application Service
   app:
     build:
       context: ./server
       dockerfile: cmd/Dockerfile
-    container_name: pharmacy-console
+    container_name: console
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,11 +55,11 @@ services:
     ports:
       - "8080:8080"  # Adjust port as needed based on your config
     networks:
-      - pharmacy-network
+      - library-net
     restart: unless-stopped
 
 networks:
-  pharmacy-network:
+  library-net:
     driver: bridge
 
 volumes:

@@ -22,6 +22,55 @@ func New(pg *postgres.Queries, rd *redis.Redis) *LibraryRepository {
 	}
 }
 
+// Users methods
+func (r *LibraryRepository) CreateUser(ctx context.Context, params postgres.CreateUserParams) (*postgres.CreateUserRow, error) {
+	return r.pg.CreateUser(ctx, params)
+}
+
+func (r *LibraryRepository) GetUserByID(ctx context.Context, id int64) (*postgres.GetUserByIDRow, error) {
+	return r.pg.GetUserByID(ctx, id)
+}
+
+func (r *LibraryRepository) GetUserByUsername(ctx context.Context, username string) (*postgres.GetUserByUsernameRow, error) {
+	return r.pg.GetUserByUsername(ctx, username)
+}
+
+func (r *LibraryRepository) GetAllUsers(ctx context.Context, params postgres.GetAllUsersParams) ([]*postgres.GetAllUsersRow, error) {
+	return r.pg.GetAllUsers(ctx, params)
+}
+
+func (r *LibraryRepository) GetUsersByRole(ctx context.Context, role string) ([]*postgres.GetUsersByRoleRow, error) {
+	return r.pg.GetUsersByRole(ctx, role)
+}
+
+func (r *LibraryRepository) UpdateUser(ctx context.Context, params postgres.UpdateUserParams) (*postgres.UpdateUserRow, error) {
+	return r.pg.UpdateUser(ctx, params)
+}
+
+func (r *LibraryRepository) UpdateUserRole(ctx context.Context, params postgres.UpdateUserRoleParams) error {
+	return r.pg.UpdateUserRole(ctx, params)
+}
+
+func (r *LibraryRepository) UpdatePassword(ctx context.Context, params postgres.UpdatePasswordParams) error {
+	return r.pg.UpdatePassword(ctx, params)
+}
+
+func (r *LibraryRepository) ActivateUser(ctx context.Context, id int64) error {
+	return r.pg.ActivateUser(ctx, id)
+}
+
+func (r *LibraryRepository) DeactivateUser(ctx context.Context, id int64) error {
+	return r.pg.DeactivateUser(ctx, id)
+}
+
+func (r *LibraryRepository) DeleteUser(ctx context.Context, id int64) error {
+	return r.pg.DeleteUser(ctx, id)
+}
+
+func (r *LibraryRepository) UpdateLastLogin(ctx context.Context, id int64) error {
+	return r.pg.UpdateLastLogin(ctx, id)
+}
+
 // Books methods
 func (r *LibraryRepository) CreateBook(ctx context.Context, params postgres.CreateBookParams) (*postgres.Book, error) {
 	return r.pg.CreateBook(ctx, params)
@@ -310,8 +359,7 @@ func (r *LibraryRepository) GlobalSearch(ctx context.Context, searchTerm string)
 }
 
 // Statistics and Reports methods
-func (r *LibraryRepository) GetLoanStatusStatistics(ctx context.Context, daysBack int) ([]*postgres.GetLoanStatusStatisticsRow, error) {
-	date := time.Now().AddDate(0, 0, -daysBack)
+func (r *LibraryRepository) GetLoanStatusStatistics(ctx context.Context, date time.Time) ([]*postgres.GetLoanStatusStatisticsRow, error) {
 	return r.pg.GetLoanStatusStatistics(ctx, date)
 }
 

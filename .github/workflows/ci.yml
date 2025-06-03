@@ -1,0 +1,195 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - master
+
+env:
+  DOCKER_REGISTRY: ghcr.io
+  DOCKER_IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  changes:
+    name: Detect changed directories
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            server:
+              - 'server/**'
+
+  build-tag:
+    name: Compute Build Tag
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.server == 'true'
+    outputs:
+      tag: ${{ steps.compute_tag.outputs.tag }}
+
+    steps:
+      - name: Compute date-and-SHA tag
+        id: compute_tag
+        run: |
+          SHORT_SHA=${GITHUB_SHA::8}
+          DATE=$(date +'%d-%m')
+          echo "tag=${DATE}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+  build-server:
+    name: Build Server Container
+    runs-on: ubuntu-latest
+    needs: [changes, build-tag]
+    if: needs.changes.outputs.server == 'true'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push server container
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository }}/server:latest
+            ghcr.io/${{ github.repository }}/server:${{ needs.build-tag.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [changes, build-server]
+    if: always()
+
+    steps:
+      - name: Check build status
+        id: check-status
+        run: |
+          if [ "${{ needs.build-server.result }}" = "failure" ]; then
+            echo "build_status=failure" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.build-server.result }}" = "cancelled" ]; then
+            echo "build_status=cancelled" >> $GITHUB_OUTPUT
+          else
+            echo "build_status=success" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Collect job results
+        id: collect
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Get job data from GitHub API
+          jobs_json=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+                        -H "Accept: application/vnd.github+json" \
+                        "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs?per_page=100")
+
+          # Track statistics and failures
+          total_jobs=0
+          success_jobs=0
+          failed_jobs=0
+          cancelled_jobs=0
+
+          # Prepare failures summary (show only if something failed)
+          failures=""
+
+          # Process each job
+          while read -r job; do
+            job_name=$(jq -r '.name' <<<"$job")
+            job_conclusion=$(jq -r '.conclusion // "in_progress"' <<<"$job")
+            total_jobs=$((total_jobs + 1))
+
+            case "$job_conclusion" in
+              success)
+                success_jobs=$((success_jobs + 1))
+                ;;
+              failure)
+                failed_jobs=$((failed_jobs + 1))
+                failures+="%0A☒ <b>${job_name}</b>"
+
+                # For failed jobs, list failed steps
+                while read -r step; do
+                  step_name=$(jq -r '.name' <<<"$step")
+                  step_conclusion=$(jq -r '.conclusion // "skipped"' <<<"$step")
+                  if [ "$step_conclusion" = "failure" ]; then
+                    failures+="%0A  • <code>${step_name}</code>"
+                  fi
+                done < <(jq -c '.steps[]' <<<"$job")
+
+                failures+="%0A"
+                ;;
+              cancelled)
+                cancelled_jobs=$((cancelled_jobs + 1))
+                failures+="%0A⚠ <b>${job_name}</b> — отменено%0A"
+                ;;
+            esac
+          done < <(jq -c '.jobs[]' <<<"$jobs_json")
+
+          # Create job summary
+          summary="<b>Задачи:</b> ${success_jobs} ✔ ║ ${failed_jobs} ☒ ║ ${cancelled_jobs} ⚠"
+
+          # Add failures if any
+          if [ -n "$failures" ]; then
+            summary+="${failures}"
+          fi
+
+          # Get abbreviated commit hash
+          short_sha="${{ github.sha }}"
+          short_sha="${short_sha:0:7}"
+
+          # Save stats to outputs
+          {
+            echo "summary<<EOF"
+            echo "${summary}"
+            echo "EOF"
+            echo "commit_short=${short_sha}"
+          } >> $GITHUB_OUTPUT
+
+      # Notification messages
+      - name: Send success notification
+        if: steps.check-status.outputs.build_status == 'success'
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d parse_mode=HTML \
+            -d text="✅ <b>${{ github.repository }}</b> • <code>${{ steps.collect.outputs.commit_short }}</code> • ${{ github.ref_name }}%0AСборка успешно завершена (${{ github.actor }}) - <a href='https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'>детали сборки</a>.%0A%0A<blockquote>${{ steps.collect.outputs.summary }}</blockquote>"
+
+      - name: Send failure notification
+        if: steps.check-status.outputs.build_status == 'failure'
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d parse_mode=HTML \
+            -d text="❌ <b>${{ github.repository }}</b> • <code>${{ steps.collect.outputs.commit_short }}</code> • ${{ github.ref_name }}%0AОшибка сборки! (${{ github.actor }}) - <a href='https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'>детали сборки</a>.%0A%0A<blockquote>${{ steps.collect.outputs.summary }}</blockquote>"
+
+      - name: Send cancellation notification
+        if: steps.check-status.outputs.build_status == 'cancelled'
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d parse_mode=HTML \
+            -d text="⚠️ <b>${{ github.repository }}</b> • <code>${{ steps.collect.outputs.commit_short }}</code> • ${{ github.ref_name }}%0AСборка отменена (${{ github.actor }}) - <a href='https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'>детали сборки</a>.%0A%0A<blockquote>${{ steps.collect.outputs.summary }}</blockquote>"

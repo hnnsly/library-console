@@ -59,6 +59,12 @@ sql:
             go_type:
               import: "github.com/govalues/decimal"
               type: "Decimal"
+            nullable: false
+          - db_type: "numeric"
+            go_type:
+              import: "github.com/govalues/decimal"
+              type: "Decimal"
+              pointer: true
           - column: "readers.total_debt"
             go_type:
               import: "github.com/govalues/decimal"

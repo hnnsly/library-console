@@ -10,6 +10,7 @@ import (
 )
 
 type Querier interface {
+	ActivateUser(ctx context.Context, id int64) error
 	AdvancedBookSearch(ctx context.Context, arg AdvancedBookSearchParams) ([]*AdvancedBookSearchRow, error)
 	AdvancedSearchBooks(ctx context.Context, arg AdvancedSearchBooksParams) ([]*AdvancedSearchBooksRow, error)
 	CalculateOverdueFine(ctx context.Context, arg CalculateOverdueFineParams) (*CalculateOverdueFineRow, error)
@@ -26,7 +27,10 @@ type Querier interface {
 	CreateRenewal(ctx context.Context, arg CreateRenewalParams) error
 	CreateRenewalRecord(ctx context.Context, arg CreateRenewalRecordParams) (*Renewal, error)
 	CreateReservation(ctx context.Context, arg CreateReservationParams) (*Reservation, error)
+	CreateUser(ctx context.Context, arg CreateUserParams) (*CreateUserRow, error)
 	DeactivateLibrarian(ctx context.Context, librarianID int64) error
+	DeactivateUser(ctx context.Context, id int64) error
+	DeleteUser(ctx context.Context, id int64) error
 	FulfillReservation(ctx context.Context, reservationID int64) error
 	GetActiveLoansByBook(ctx context.Context, bookID int) ([]*GetActiveLoansByBookRow, error)
 	GetActiveReaders(ctx context.Context, resultLimit int32) ([]*GetActiveReadersRow, error)
@@ -34,6 +38,7 @@ type Querier interface {
 	GetAllHalls(ctx context.Context) ([]*GetAllHallsRow, error)
 	GetAllLibrarians(ctx context.Context) ([]*Librarian, error)
 	GetAllReaders(ctx context.Context, arg GetAllReadersParams) ([]*GetAllReadersRow, error)
+	GetAllUsers(ctx context.Context, arg GetAllUsersParams) ([]*GetAllUsersRow, error)
 	GetAvailableBooks(ctx context.Context, resultLimit int32) ([]*GetAvailableBooksRow, error)
 	GetBookByCode(ctx context.Context, bookCode string) (*GetBookByCodeRow, error)
 	GetBookByID(ctx context.Context, bookID int64) (*GetBookByIDRow, error)
@@ -70,6 +75,9 @@ type Querier interface {
 	GetRenewalsForLoan(ctx context.Context, loanHistoryID int) ([]*GetRenewalsForLoanRow, error)
 	GetTopRatedBooks(ctx context.Context, resultLimit int32) ([]*GetTopRatedBooksRow, error)
 	GetUnpaidFines(ctx context.Context) ([]*GetUnpaidFinesRow, error)
+	GetUserByID(ctx context.Context, id int64) (*GetUserByIDRow, error)
+	GetUserByUsername(ctx context.Context, username string) (*GetUserByUsernameRow, error)
+	GetUsersByRole(ctx context.Context, role string) ([]*GetUsersByRoleRow, error)
 	GetYearlyReportByCategory(ctx context.Context) ([]*GetYearlyReportByCategoryRow, error)
 	GlobalSearch(ctx context.Context, searchTerm string) ([]*GlobalSearchRow, error)
 	MarkLoanAsLost(ctx context.Context, id int64) error
@@ -81,10 +89,14 @@ type Querier interface {
 	UpdateBookAvailability(ctx context.Context, arg UpdateBookAvailabilityParams) error
 	UpdateBookCopies(ctx context.Context, arg UpdateBookCopiesParams) error
 	UpdateHallOccupancy(ctx context.Context, hallID int) error
+	UpdateLastLogin(ctx context.Context, id int64) error
 	UpdateLibrarian(ctx context.Context, arg UpdateLibrarianParams) (*Librarian, error)
+	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) error
 	UpdateReader(ctx context.Context, arg UpdateReaderParams) (*Reader, error)
 	UpdateReaderDebt(ctx context.Context, readerID int64) error
 	UpdateReaderStatus(ctx context.Context, arg UpdateReaderStatusParams) error
+	UpdateUser(ctx context.Context, arg UpdateUserParams) (*UpdateUserRow, error)
+	UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) error
 	WaiveFine(ctx context.Context, fineID int64) error
 	WriteOffBook(ctx context.Context, bookID int64) error
 }

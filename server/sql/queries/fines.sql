@@ -54,7 +54,7 @@ ORDER BY total_debt DESC;
 -- name: CalculateOverdueFine :one
 SELECT
     id as loan_history_id,
-    GREATEST(0, EXTRACT(DAYS FROM (CURRENT_DATE - due_date))::int) as overdue_days,
-    GREATEST(0, EXTRACT(DAYS FROM (CURRENT_DATE - due_date))::int) * @daily_fine_rate as calculated_fine
+    GREATEST(0, EXTRACT(DAYS FROM (CURRENT_DATE - due_date)))::int as overdue_days,
+    (GREATEST(0, EXTRACT(DAYS FROM (CURRENT_DATE - due_date))) * @daily_fine_rate::numeric)::numeric as calculated_fine
 FROM loan_history
 WHERE id = @loan_history_id;

@@ -257,6 +257,42 @@ CREATE INDEX idx_daily_statistics_stat_date ON daily_statistics (stat_date);
 CREATE TRIGGER update_daily_statistics_updated_at BEFORE UPDATE ON daily_statistics
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('super_admin', 'admin', 'librarian')),
+    full_name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20),
+    is_active BOOLEAN DEFAULT true,
+    is_first_admin BOOLEAN DEFAULT false, -- Флаг для первоначального администратора
+    last_login_at TIMESTAMP,
+    created_by BIGINT REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Создаем индексы
+CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_users_is_active ON users(is_active);
+
+-- Создаем первоначального администратора (пароль: admin123)
+INSERT INTO users (
+    username, email, password_hash, role, full_name, is_first_admin, is_active
+) VALUES (
+    'admin',
+    'admin@library.local',
+    '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- bcrypt hash для 'admin123'
+    'super_admin',
+    'Системный администратор',
+    true,
+    true
+);
+
 -- Комментарии к таблицам
 COMMENT ON TABLE halls IS 'Таблица читальных залов';
 COMMENT ON TABLE readers IS 'Таблица читателей';

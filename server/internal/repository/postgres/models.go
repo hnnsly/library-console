@@ -182,3 +182,19 @@ type Reservation struct {
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
+
+type User struct {
+	ID           int64      `json:"id"`
+	Username     string     `json:"username"`
+	Email        string     `json:"email"`
+	PasswordHash string     `json:"password_hash"`
+	Role         string     `json:"role"`
+	FullName     string     `json:"full_name"`
+	Phone        *string    `json:"phone"`
+	IsActive     *bool      `json:"is_active"`
+	IsFirstAdmin *bool      `json:"is_first_admin"`
+	LastLoginAt  *time.Time `json:"last_login_at"`
+	CreatedBy    *int64     `json:"created_by"`
+	CreatedAt    *time.Time `json:"created_at"`
+	UpdatedAt    *time.Time `json:"updated_at"`
+}
