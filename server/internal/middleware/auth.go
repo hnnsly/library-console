@@ -13,7 +13,7 @@ import (
 
 func AuthRequired(sessionManager *auth.SessionManager) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		sessionID := c.Cookies("session_id")
+		sessionID := c.Cookies("library-console_session_token")
 		if sessionID == "" {
 			return httperr.New(fiber.StatusUnauthorized, "Authentication required.")
 		}
@@ -22,7 +22,7 @@ func AuthRequired(sessionManager *auth.SessionManager) fiber.Handler {
 		if err != nil {
 			// Удаляем некорректный cookie
 			c.Cookie(&fiber.Cookie{
-				Name:     "session_id",
+				Name:     "library-console_session_token",
 				Value:    "",
 				Expires:  time.Now().Add(-time.Hour),
 				HTTPOnly: true,
