@@ -54,7 +54,7 @@ func (h *Handler) Router() *fiber.App {
 	app.Use(logger.RequestLogger())
 
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:3000",
+		AllowOrigins:     "http://lab.somerka.ru",
 		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH",
 		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-CSRF-Token", // Добавь нужные заголовки
 		AllowCredentials: true,                                                                     // Разрешить передачу cookie

@@ -311,26 +311,26 @@ func (h *AuthHandler) setSecureCookie(c *fiber.Ctx, sessionID string) {
 	//isProduction := c.Get("X-Forwarded-Proto") == "https" || c.Protocol() == "https"
 
 	c.Cookie(&fiber.Cookie{
-		Name:     "session_token",
+		Name:     "library-console_session_token",
 		Value:    sessionID,
 		Path:     "/",
 		HTTPOnly: true,
-		Secure:   true,  // Recommended for production
-		SameSite: "Lax", // Or "Strict"
+		Secure:   true,     // Recommended for production
+		SameSite: "Strict", // Or "Strict"
 		Expires:  time.Now().Add(12 * time.Hour),
 	})
 }
 
 func (h *AuthHandler) clearSecureCookie(c *fiber.Ctx) {
-	isProduction := c.Get("X-Forwarded-Proto") == "https" || c.Protocol() == "https"
+	//isProduction := c.Get("X-Forwarded-Proto") == "https" || c.Protocol() == "https"
 
 	c.Cookie(&fiber.Cookie{
-		Name:     "session_id",
+		Name:     "library-console_session_token",
 		Value:    "",
 		Expires:  time.Now().Add(-time.Hour),
 		HTTPOnly: true,
-		Secure:   isProduction,
-		SameSite: "Lax",
+		Secure:   true,
+		SameSite: "Strict",
 		Path:     "/",
 		Domain:   "",
 		MaxAge:   -1, // Добавляем это для принудительного удаления
