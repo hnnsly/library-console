@@ -25,4 +25,4 @@ EXPOSE 8080
 CMD ["./library-server"]
 
 LABEL org.opencontainers.image.source=https://github.com/hnnsly/library-console
-LABEL org.opencontainers.image.description="Backend API контейнер для консоли управления аптекой \"PharmShark\""
+LABEL org.opencontainers.image.description="Backend API контейнер для консоли управления библиотекой yaLMS"
