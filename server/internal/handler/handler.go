@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -35,7 +36,7 @@ type Handler struct {
 // NewHandler creates a new library API handler.
 func NewHandler(repo *repository.LibraryRepository, cfg config.LibraryServiceConfig, pgQueries *postgres.Queries, redisClient *redis.Redis) *Handler {
 	sessionManager := auth.NewSessionManager(redisClient)
-	authHandler := NewAuthHandler(pgQueries, sessionManager)
+	authHandler := NewAuthHandler(pgQueries, sessionManager, 12*time.Hour)
 
 	return &Handler{
 		repo:           repo,
@@ -72,7 +73,7 @@ func (h *Handler) Router() *fiber.App {
 	api := app.Group("/api")
 
 	// Apply authentication middleware to all API routes
-	api.Use(middleware.AuthRequired(h.sessionManager))
+	api.Use(middleware.AuthRequired(h.sessionManager, 12*time.Hour))
 
 	// Setup all protected routes
 	h.setupBooksRoutes(api)
@@ -100,7 +101,7 @@ func (h *Handler) setupAuthRoutes(app *fiber.App) {
 	auth.Post("/login", h.authHandler.login)
 
 	// Защищенные роуты авторизации
-	authProtected := auth.Use(middleware.AuthRequired(h.sessionManager))
+	authProtected := auth.Use(middleware.AuthRequired(h.sessionManager, 12*time.Hour))
 	authProtected.Post("/logout", h.authHandler.logout)
 	authProtected.Get("/me", h.authHandler.getCurrentUser)
 	authProtected.Post("/change-password", h.authHandler.changePassword)
@@ -253,22 +254,22 @@ func (h *Handler) setupLibrariansRoutes(api fiber.Router) {
 
 // setupUsersRoutes настраивает роуты для управления пользователями
 func (h *Handler) setupUsersRoutes(api fiber.Router) {
-	users := api.Group("/users")
+	// users := api.Group("/users")
 
-	// Роуты для администраторов
-	adminOnly := users.Use(middleware.RequireRole("admin", "super_admin"))
-	adminOnly.Post("/", h.createUser)
-	adminOnly.Post("/list", h.getAllUsers)
-	adminOnly.Get("/:id", h.getUserByID)
-	adminOnly.Put("/:id", h.updateUser)
-	adminOnly.Put("/:id/role", h.updateUserRole)
-	adminOnly.Put("/:id/deactivate", h.deactivateUser)
-	adminOnly.Put("/:id/activate", h.activateUser)
-	adminOnly.Get("/role/:role", h.getUsersByRole)
+	// // Роуты для администраторов
+	// adminOnly := users.Use(middleware.RequireRole("admin", "super_admin"))
+	// adminOnly.Post("/", h.createUser)
+	// adminOnly.Post("/list", h.getAllUsers)
+	// adminOnly.Get("/:id", h.getUserByID)
+	// adminOnly.Put("/:id", h.updateUser)
+	// adminOnly.Put("/:id/role", h.updateUserRole)
+	// adminOnly.Put("/:id/deactivate", h.deactivateUser)
+	// adminOnly.Put("/:id/activate", h.activateUser)
+	// adminOnly.Get("/role/:role", h.getUsersByRole)
 
-	// Роуты только для super_admin
-	superAdminOnly := users.Use(middleware.RequireRole("super_admin"))
-	superAdminOnly.Delete("/:id", h.deleteUser)
+	// // Роуты только для super_admin
+	// superAdminOnly := users.Use(middleware.RequireRole("super_admin"))
+	// superAdminOnly.Delete("/:id", h.deleteUser)
 }
 
 // setupSearchRoutes настраивает роуты для поиска

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"strings"
 	"time"
 
 	"slices"
@@ -11,58 +12,37 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func AuthRequired(sessionManager *auth.SessionManager) fiber.Handler {
+// AuthRequired проверяет аутентификацию пользователя
+func AuthRequired(sessionManager *auth.SessionManager, ttl time.Duration) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		sessionID := c.Cookies("library-console_session_token")
+		// Получаем session ID из cookie или Authorization header
+		sessionID := getSessionID(c)
 		if sessionID == "" {
 			return httperr.New(fiber.StatusUnauthorized, "Authentication required.")
 		}
 
+		// Получаем данные сессии из Redis
 		session, err := sessionManager.GetSession(c.Context(), sessionID)
 		if err != nil {
-			// Удаляем некорректный cookie
-			c.Cookie(&fiber.Cookie{
-				Name:     "library-console_session_token",
-				Value:    "",
-				Expires:  time.Now().Add(-time.Hour),
-				HTTPOnly: true,
-				Path:     "/",
-			})
+			clearSessionCookie(c)
 			return httperr.New(fiber.StatusUnauthorized, "Invalid session.")
 		}
 
-		// Дополнительные проверки безопасности
-		currentIP := c.IP()
-		currentUserAgent := c.Get("User-Agent")
-
-		if err := sessionManager.ValidateSessionSecurity(c.Context(), sessionID, currentIP, currentUserAgent); err != nil {
-			log.Warn().
-				Str("sessionID", sessionID).
-				Str("currentIP", currentIP).
-				Str("sessionIP", session.IPAddress).
-				Msg("Session security validation failed")
-			// В зависимости от политики безопасности можно:
-			// 1. Завершить сессию
-			// 2. Потребовать повторную аутентификацию
-			// 3. Просто залогировать
-		}
-
-		// Обновляем время последней активности (не чаще раза в минуту)
-		if time.Since(session.LastSeen) > time.Minute {
-			sessionManager.UpdateLastSeen(c.Context(), sessionID)
-		}
-
-		// Сохраняем данные пользователя в контексте
+		// Сохраняем данные в контексте
 		c.Locals("user_id", session.UserID)
-		c.Locals("username", session.Username)
 		c.Locals("role", session.Role)
-		c.Locals("full_name", session.FullName)
 		c.Locals("session_id", sessionID)
+
+		// Best-effort обновление TTL (не блокируем запрос при ошибке)
+		if err := sessionManager.RefreshSession(c.Context(), sessionID, ttl); err != nil {
+			log.Warn().Err(err).Str("session_id", sessionID).Msg("Failed to refresh session TTL")
+		}
 
 		return c.Next()
 	}
 }
 
+// RequireRole проверяет, что у пользователя есть необходимая роль
 func RequireRole(roles ...string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		userRole, ok := c.Locals("role").(string)
@@ -70,25 +50,46 @@ func RequireRole(roles ...string) fiber.Handler {
 			return httperr.New(fiber.StatusUnauthorized, "Role information not found.")
 		}
 
-		if slices.Contains(roles, userRole) {
-			return c.Next()
+		if !slices.Contains(roles, userRole) {
+			log.Warn().
+				Str("userRole", userRole).
+				Strs("requiredRoles", roles).
+				Str("path", c.Path()).
+				Int64("userID", c.Locals("user_id").(int64)).
+				Msg("Access denied - insufficient permissions")
+
+			return httperr.New(fiber.StatusForbidden, "Insufficient permissions.")
 		}
 
-		log.Warn().
-			Str("userRole", userRole).
-			Strs("requiredRoles", roles).
-			Str("path", c.Path()).
-			Msg("Access denied - insufficient permissions")
-
-		return httperr.New(fiber.StatusForbidden, "Insufficient permissions.")
+		return c.Next()
 	}
 }
 
-// Rate limiting middleware
-func RateLimit() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		// Здесь должна быть реализация rate limiting
-		// Можно использовать готовые решения или Redis
-		return c.Next()
+// getSessionID извлекает session ID из cookie или Authorization header
+func getSessionID(c *fiber.Ctx) string {
+	// Сначала пробуем cookie
+	if sessionID := c.Cookies("library-console_session_token"); sessionID != "" {
+		return sessionID
 	}
+
+	// Потом Authorization header
+	auth := c.Get("Authorization")
+	if strings.HasPrefix(auth, "Bearer ") {
+		return strings.TrimPrefix(auth, "Bearer ")
+	}
+
+	return ""
+}
+
+// clearSessionCookie очищает session cookie
+func clearSessionCookie(c *fiber.Ctx) {
+	c.Cookie(&fiber.Cookie{
+		Name:     "library-console_session_token",
+		Value:    "",
+		Path:     "/",
+		HTTPOnly: true,
+		Secure:   true, // В продакшене
+		SameSite: "Lax",
+		Expires:  time.Now().Add(-time.Hour),
+	})
 }

@@ -11,7 +11,7 @@ FROM users
 WHERE username = @username AND is_active = true;
 
 -- name: GetUserByID :one
-SELECT id, username, email, role, full_name, phone, is_active, is_first_admin, last_login_at, created_at, updated_at
+SELECT id, username, email, password_hash, role, full_name, phone, is_active, is_first_admin, last_login_at, created_at, updated_at
 FROM users
 WHERE id = @id;
 

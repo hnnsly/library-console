@@ -156,7 +156,7 @@ func (q *Queries) GetAllUsers(ctx context.Context, arg GetAllUsersParams) ([]*Ge
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, username, email, role, full_name, phone, is_active, is_first_admin, last_login_at, created_at, updated_at
+SELECT id, username, email, password_hash, role, full_name, phone, is_active, is_first_admin, last_login_at, created_at, updated_at
 FROM users
 WHERE id = $1
 `
@@ -165,6 +165,7 @@ type GetUserByIDRow struct {
 	ID           int64      `json:"id"`
 	Username     string     `json:"username"`
 	Email        string     `json:"email"`
+	PasswordHash string     `json:"password_hash"`
 	Role         string     `json:"role"`
 	FullName     string     `json:"full_name"`
 	Phone        *string    `json:"phone"`
@@ -182,6 +183,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (*GetUserByIDRow, e
 		&i.ID,
 		&i.Username,
 		&i.Email,
+		&i.PasswordHash,
 		&i.Role,
 		&i.FullName,
 		&i.Phone,

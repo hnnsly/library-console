@@ -4,11 +4,17 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/hnnsly/library-console/internal/auth"
 	httperr "github.com/hnnsly/library-console/internal/error"
 	"github.com/hnnsly/library-console/internal/repository/postgres"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/crypto/bcrypt"
 )
+
+type UserHandler struct {
+	repo           *postgres.Queries
+	sessionManager *auth.SessionManager
+}
 
 type CreateUserRequest struct {
 	Username string  `json:"username"`
@@ -34,20 +40,21 @@ type GetAllUsersRequest struct {
 	PageLimit  int32 `json:"page_limit"`
 }
 
-// createUser создает нового пользователя (только для администраторов)
-func (h *Handler) createUser(c *fiber.Ctx) error {
+func NewUserHandler(repo *postgres.Queries, sessionManager *auth.SessionManager) *UserHandler {
+	return &UserHandler{
+		repo:           repo,
+		sessionManager: sessionManager,
+	}
+}
+
+// CreateUser создает нового пользователя (только для администраторов)
+func (h *UserHandler) createUser(c *fiber.Ctx) error {
 	req := new(CreateUserRequest)
 	if err := c.BodyParser(req); err != nil {
 		return httperr.New(fiber.StatusBadRequest, "Invalid request body.")
 	}
 
-	// TODO: Validate required fields: username, email, password, role, full_name
-	// TODO: Validate username format (alphanumeric, 3-50 chars)
-	// TODO: Validate email format
-	// TODO: Validate password strength (min 8 chars, complexity)
-	// TODO: Validate role is one of: admin, librarian
-	// TODO: Validate full_name min length 2, max length 100
-	// TODO: Validate phone format if provided
+	// TODO: Добавить валидацию полей
 
 	// Только super_admin может создавать admin'ов
 	currentUserRole := c.Locals("role").(string)
@@ -90,19 +97,21 @@ func (h *Handler) createUser(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(user)
 }
 
-// getAllUsers получает список всех пользователей
-func (h *Handler) getAllUsers(c *fiber.Ctx) error {
+// GetAllUsers получает список всех пользователей
+func (h *UserHandler) getAllUsers(c *fiber.Ctx) error {
 	req := new(GetAllUsersRequest)
 	if err := c.BodyParser(req); err != nil {
-		return httperr.New(fiber.StatusBadRequest, "Invalid request body.")
+		// Если тело запроса пустое или некорректное, используем значения по умолчанию
+		req.PageOffset = 0
+		req.PageLimit = 20
 	}
 
 	if req.PageLimit == 0 {
-		req.PageLimit = 20 // default limit
+		req.PageLimit = 20
 	}
-
-	// TODO: Validate page_limit > 0 and <= 100
-	// TODO: Validate page_offset >= 0
+	if req.PageLimit > 100 {
+		req.PageLimit = 100
+	}
 
 	params := postgres.GetAllUsersParams{
 		OffsetUsers: req.PageOffset,
@@ -122,8 +131,8 @@ func (h *Handler) getAllUsers(c *fiber.Ctx) error {
 	return c.JSON(users)
 }
 
-// getUserByID получает пользователя по ID
-func (h *Handler) getUserByID(c *fiber.Ctx) error {
+// GetUserByID получает пользователя по ID
+func (h *UserHandler) getUserByID(c *fiber.Ctx) error {
 	id, err := parseID(c, "id")
 	if err != nil {
 		return err
@@ -141,8 +150,8 @@ func (h *Handler) getUserByID(c *fiber.Ctx) error {
 	return c.JSON(user)
 }
 
-// updateUser обновляет информацию о пользователе
-func (h *Handler) updateUser(c *fiber.Ctx) error {
+// UpdateUser обновляет информацию о пользователе
+func (h *UserHandler) updateUser(c *fiber.Ctx) error {
 	id, err := parseID(c, "id")
 	if err != nil {
 		return err
@@ -153,10 +162,7 @@ func (h *Handler) updateUser(c *fiber.Ctx) error {
 		return httperr.New(fiber.StatusBadRequest, "Invalid request body.")
 	}
 
-	// TODO: Validate required fields: email, full_name
-	// TODO: Validate email format
-	// TODO: Validate full_name min length 2, max length 100
-	// TODO: Validate phone format if provided
+	// TODO: Добавить валидацию полей
 
 	// Пользователи могут редактировать только себя, администраторы - всех
 	currentUserID := c.Locals("user_id").(int64)
@@ -188,8 +194,8 @@ func (h *Handler) updateUser(c *fiber.Ctx) error {
 	return c.JSON(user)
 }
 
-// updateUserRole обновляет роль пользователя (только для администраторов)
-func (h *Handler) updateUserRole(c *fiber.Ctx) error {
+// UpdateUserRole обновляет роль пользователя (только для администраторов)
+func (h *UserHandler) updateUserRole(c *fiber.Ctx) error {
 	id, err := parseID(c, "id")
 	if err != nil {
 		return err
@@ -200,7 +206,7 @@ func (h *Handler) updateUserRole(c *fiber.Ctx) error {
 		return httperr.New(fiber.StatusBadRequest, "Invalid request body.")
 	}
 
-	// TODO: Validate role is one of: admin, librarian
+	// TODO: Валидация роли
 
 	// Только super_admin может назначать роль admin
 	currentUserRole := c.Locals("role").(string)
@@ -222,11 +228,16 @@ func (h *Handler) updateUserRole(c *fiber.Ctx) error {
 		return httperr.New(fiber.StatusInternalServerError, "Failed to update user role.")
 	}
 
+	// Инвалидируем все сессии пользователя при изменении роли
+	if err := h.sessionManager.InvalidateAllUserSessions(c.Context(), id); err != nil {
+		log.Error().Err(err).Int64("userID", id).Msg("Failed to invalidate user sessions after role change")
+	}
+
 	return c.JSON(fiber.Map{"message": "User role updated successfully"})
 }
 
-// deactivateUser деактивирует пользователя
-func (h *Handler) deactivateUser(c *fiber.Ctx) error {
+// DeactivateUser деактивирует пользователя
+func (h *UserHandler) deactivateUser(c *fiber.Ctx) error {
 	id, err := parseID(c, "id")
 	if err != nil {
 		return err
@@ -241,11 +252,16 @@ func (h *Handler) deactivateUser(c *fiber.Ctx) error {
 		return httperr.New(fiber.StatusInternalServerError, "Failed to deactivate user.")
 	}
 
+	// Инвалидируем все сессии деактивированного пользователя
+	if err := h.sessionManager.InvalidateAllUserSessions(c.Context(), id); err != nil {
+		log.Error().Err(err).Int64("userID", id).Msg("Failed to invalidate sessions for deactivated user")
+	}
+
 	return c.JSON(fiber.Map{"message": "User deactivated successfully"})
 }
 
-// activateUser активирует пользователя
-func (h *Handler) activateUser(c *fiber.Ctx) error {
+// ActivateUser активирует пользователя
+func (h *UserHandler) activateUser(c *fiber.Ctx) error {
 	id, err := parseID(c, "id")
 	if err != nil {
 		return err
@@ -263,11 +279,16 @@ func (h *Handler) activateUser(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "User activated successfully"})
 }
 
-// deleteUser удаляет пользователя (только для super_admin)
-func (h *Handler) deleteUser(c *fiber.Ctx) error {
+// DeleteUser удаляет пользователя (только для super_admin)
+func (h *UserHandler) deleteUser(c *fiber.Ctx) error {
 	id, err := parseID(c, "id")
 	if err != nil {
 		return err
+	}
+
+	// Инвалидируем все сессии пользователя перед удалением
+	if err := h.sessionManager.InvalidateAllUserSessions(c.Context(), id); err != nil {
+		log.Error().Err(err).Int64("userID", id).Msg("Failed to invalidate sessions before user deletion")
 	}
 
 	err = h.repo.DeleteUser(c.Context(), id)
@@ -282,14 +303,14 @@ func (h *Handler) deleteUser(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "User deleted successfully"})
 }
 
-// getUsersByRole получает пользователей по роли
-func (h *Handler) getUsersByRole(c *fiber.Ctx) error {
+// GetUsersByRole получает пользователей по роли
+func (h *UserHandler) GetUsersByRole(c *fiber.Ctx) error {
 	role := c.Params("role")
 	if role == "" {
 		return httperr.New(fiber.StatusBadRequest, "Role is required.")
 	}
 
-	// TODO: Validate role is one of: super_admin, admin, librarian
+	// TODO: Валидация роли
 
 	users, err := h.repo.GetUsersByRole(c.Context(), role)
 	if err != nil {

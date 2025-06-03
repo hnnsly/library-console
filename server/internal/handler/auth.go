@@ -16,6 +16,7 @@ import (
 type AuthHandler struct {
 	repo           *postgres.Queries
 	sessionManager *auth.SessionManager
+	sessionTTL     time.Duration
 }
 
 type LoginRequest struct {
@@ -39,10 +40,18 @@ type ChangePasswordRequest struct {
 	NewPassword     string `json:"new_password"`
 }
 
-func NewAuthHandler(repo *postgres.Queries, sessionManager *auth.SessionManager) *AuthHandler {
+type RefreshResponse struct {
+	UserID    int64  `json:"user_id"`
+	Role      string `json:"role"`
+	SessionID string `json:"session_id"`
+	ExpiresIn int    `json:"expires_in"`
+}
+
+func NewAuthHandler(repo *postgres.Queries, sessionManager *auth.SessionManager, sessionTTL time.Duration) *AuthHandler {
 	return &AuthHandler{
 		repo:           repo,
 		sessionManager: sessionManager,
+		sessionTTL:     sessionTTL,
 	}
 }
 
@@ -73,7 +82,6 @@ func (req *ChangePasswordRequest) Validate() error {
 	if len(req.NewPassword) < 8 {
 		return httperr.New(fiber.StatusBadRequest, "New password must be at least 8 characters long.")
 	}
-	// Добавляем проверку сложности пароля
 	if !isPasswordStrong(req.NewPassword) {
 		return httperr.New(fiber.StatusBadRequest, "New password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character.")
 	}
@@ -83,20 +91,20 @@ func (req *ChangePasswordRequest) Validate() error {
 	return nil
 }
 
-// login авторизует пользователя
+// Login авторизует пользователя
 func (h *AuthHandler) login(c *fiber.Ctx) error {
 	req := new(LoginRequest)
 	if err := c.BodyParser(req); err != nil {
 		return httperr.New(fiber.StatusBadRequest, "Invalid request body.")
 	}
 
-	// Валидация входных данных
 	if err := req.Validate(); err != nil {
 		return err
 	}
 
-	// Rate limiting проверка (можно добавить через middleware)
 	clientIP := c.IP()
+
+	// Rate limiting проверка
 	if err := h.checkRateLimit(c.Context(), clientIP, req.Username); err != nil {
 		return err
 	}
@@ -105,7 +113,6 @@ func (h *AuthHandler) login(c *fiber.Ctx) error {
 	user, err := h.repo.GetUserByUsername(c.Context(), req.Username)
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows in result set") {
-			// Логируем попытку входа с несуществующим пользователем
 			log.Warn().
 				Str("username", req.Username).
 				Str("ip", clientIP).
@@ -128,37 +135,22 @@ func (h *AuthHandler) login(c *fiber.Ctx) error {
 	// Проверяем пароль
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
 	if err != nil {
-		// Логируем неудачную попытку входа
 		log.Warn().
 			Str("username", req.Username).
 			Str("ip", clientIP).
 			Msg("Failed login attempt")
 
-		// Увеличиваем счетчик неудачных попыток
 		h.incrementFailedAttempts(c.Context(), clientIP, req.Username)
-
 		return httperr.New(fiber.StatusUnauthorized, "Invalid credentials.")
 	}
 
 	// Инвалидируем все существующие сессии пользователя (опционально)
-	if err := h.sessionManager.InvalidateUserSessions(c.Context(), user.ID); err != nil {
+	if err := h.sessionManager.InvalidateAllUserSessions(c.Context(), user.ID); err != nil {
 		log.Error().Err(err).Int64("userID", user.ID).Msg("Failed to invalidate existing sessions")
-		// Продолжаем, это не критическая ошибка
 	}
 
-	// Создаем сессию
-	sessionData := auth.SessionData{
-		UserID:    user.ID,
-		Username:  user.Username,
-		Role:      user.Role,
-		FullName:  user.FullName,
-		CreatedAt: time.Now(),
-		LastSeen:  time.Now(),
-		IPAddress: clientIP,
-		UserAgent: c.Get("User-Agent"),
-	}
-
-	sessionID, err := h.sessionManager.CreateSession(c.Context(), sessionData)
+	// Создаем новую сессию с упрощенными данными
+	sessionID, err := h.sessionManager.CreateSession(c.Context(), user.ID, user.Role, h.sessionTTL)
 	if err != nil {
 		log.Error().Err(err).Int64("userID", user.ID).Msg("Failed to create session")
 		return httperr.New(fiber.StatusInternalServerError, "Failed to create session.")
@@ -173,10 +165,9 @@ func (h *AuthHandler) login(c *fiber.Ctx) error {
 	// Сбрасываем счетчик неудачных попыток
 	h.resetFailedAttempts(c.Context(), clientIP, req.Username)
 
-	// Устанавливаем cookie с улучшенной безопасностью
+	// Устанавливаем cookie
 	h.setSecureCookie(c, sessionID)
 
-	// Логируем успешный вход
 	log.Info().
 		Str("username", user.Username).
 		Str("ip", clientIP).
@@ -195,9 +186,9 @@ func (h *AuthHandler) login(c *fiber.Ctx) error {
 	return c.JSON(response)
 }
 
-// logout выходит из системы
+// Logout выходит из системы
 func (h *AuthHandler) logout(c *fiber.Ctx) error {
-	sessionID := c.Cookies("session_id")
+	sessionID := h.getSessionID(c)
 	if sessionID != "" {
 		err := h.sessionManager.DeleteSession(c.Context(), sessionID)
 		if err != nil {
@@ -213,13 +204,39 @@ func (h *AuthHandler) logout(c *fiber.Ctx) error {
 		}
 	}
 
-	// Удаляем cookie
 	h.clearSecureCookie(c)
-
 	return c.JSON(fiber.Map{"message": "Logged out successfully"})
 }
 
-// getCurrentUser получает информацию о текущем пользователе
+// RefreshToken обновляет сессию
+func (h *AuthHandler) refreshToken(c *fiber.Ctx) error {
+	sessionID := h.getSessionID(c)
+	if sessionID == "" {
+		return httperr.New(fiber.StatusUnauthorized, "No session token provided.")
+	}
+
+	session, err := h.sessionManager.GetSession(c.Context(), sessionID)
+	if err != nil {
+		log.Debug().Err(err).Str("session_id", sessionID).Msg("RefreshToken: GetSession failed or session invalid")
+		return httperr.New(fiber.StatusUnauthorized, "Invalid or expired session.")
+	}
+
+	if err := h.sessionManager.RefreshSession(c.Context(), sessionID, h.sessionTTL); err != nil {
+		log.Warn().Err(err).Str("session_id", sessionID).Msg("RefreshToken: RefreshSession failed")
+		return httperr.New(fiber.StatusInternalServerError, "Failed to refresh session.")
+	}
+
+	h.setSecureCookie(c, sessionID)
+
+	return c.JSON(RefreshResponse{
+		UserID:    session.UserID,
+		Role:      session.Role,
+		SessionID: sessionID,
+		ExpiresIn: int(h.sessionTTL.Seconds()),
+	})
+}
+
+// GetCurrentUser получает информацию о текущем пользователе
 func (h *AuthHandler) getCurrentUser(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(int64)
 
@@ -232,32 +249,24 @@ func (h *AuthHandler) getCurrentUser(c *fiber.Ctx) error {
 		return httperr.New(fiber.StatusInternalServerError, "Failed to get user information.")
 	}
 
-	// Обновляем время последней активности в сессии
-	sessionID := c.Cookies("session_id")
-	if sessionID != "" {
-		h.sessionManager.UpdateLastSeen(c.Context(), sessionID)
-	}
-
 	return c.JSON(user)
 }
 
-// changePassword изменяет пароль пользователя
+// ChangePassword изменяет пароль пользователя
 func (h *AuthHandler) changePassword(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(int64)
-	username := c.Locals("username").(string)
 
 	req := new(ChangePasswordRequest)
 	if err := c.BodyParser(req); err != nil {
 		return httperr.New(fiber.StatusBadRequest, "Invalid request body.")
 	}
 
-	// Валидация
 	if err := req.Validate(); err != nil {
 		return err
 	}
 
-	// Получаем текущего пользователя для проверки пароля
-	user, err := h.repo.GetUserByUsername(c.Context(), username)
+	// Получаем пользователя для проверки текущего пароля
+	user, err := h.repo.GetUserByID(c.Context(), userID)
 	if err != nil {
 		log.Error().Err(err).Int64("userID", userID).Msg("Failed to get user for password change")
 		return httperr.New(fiber.StatusInternalServerError, "Failed to change password.")
@@ -292,8 +301,8 @@ func (h *AuthHandler) changePassword(c *fiber.Ctx) error {
 	}
 
 	// Инвалидируем все сессии пользователя кроме текущей
-	currentSessionID := c.Cookies("session_id")
-	if err := h.sessionManager.InvalidateUserSessionsExcept(c.Context(), userID, currentSessionID); err != nil {
+	currentSessionID := h.getSessionID(c)
+	if err := h.sessionManager.InvalidateAllUserSessionsExcept(c.Context(), userID, currentSessionID); err != nil {
 		log.Error().Err(err).Int64("userID", userID).Msg("Failed to invalidate other sessions after password change")
 	}
 
@@ -305,35 +314,42 @@ func (h *AuthHandler) changePassword(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Password changed successfully"})
 }
 
-// Вспомогательные функы
-func (h *AuthHandler) setSecureCookie(c *fiber.Ctx, sessionID string) {
-	// Определяем, работаем ли мы в dev режиме
-	//isProduction := c.Get("X-Forwarded-Proto") == "https" || c.Protocol() == "https"
+// Вспомогательные функции
+func (h *AuthHandler) getSessionID(c *fiber.Ctx) string {
+	if sessionID := c.Cookies("library-console_session_token"); sessionID != "" {
+		return sessionID
+	}
 
+	auth := c.Get("Authorization")
+	if strings.HasPrefix(auth, "Bearer ") {
+		return strings.TrimPrefix(auth, "Bearer ")
+	}
+
+	return ""
+}
+
+func (h *AuthHandler) setSecureCookie(c *fiber.Ctx, sessionID string) {
 	c.Cookie(&fiber.Cookie{
 		Name:     "library-console_session_token",
 		Value:    sessionID,
 		Path:     "/",
 		HTTPOnly: true,
-		Secure:   true,     // Recommended for production
-		SameSite: "Strict", // Or "Strict"
-		Expires:  time.Now().Add(12 * time.Hour),
+		Secure:   true,
+		SameSite: "Strict",
+		Expires:  time.Now().Add(h.sessionTTL),
 	})
 }
 
 func (h *AuthHandler) clearSecureCookie(c *fiber.Ctx) {
-	//isProduction := c.Get("X-Forwarded-Proto") == "https" || c.Protocol() == "https"
-
 	c.Cookie(&fiber.Cookie{
 		Name:     "library-console_session_token",
 		Value:    "",
-		Expires:  time.Now().Add(-time.Hour),
+		Path:     "/",
 		HTTPOnly: true,
 		Secure:   true,
 		SameSite: "Strict",
-		Path:     "/",
-		Domain:   "",
-		MaxAge:   -1, // Добавляем это для принудительного удаления
+		Expires:  time.Now().Add(-time.Hour),
+		MaxAge:   -1,
 	})
 }
 
@@ -363,15 +379,14 @@ func isPasswordStrong(password string) bool {
 
 // Rate limiting функции (упрощенная реализация)
 func (h *AuthHandler) checkRateLimit(ctx context.Context, ip, username string) error {
-	// Здесь должна быть реализация rate limiting через Redis
-	// Пример: максимум 5 попыток за 15 минут
+	// TODO: Реализация rate limiting через Redis
 	return nil
 }
 
 func (h *AuthHandler) incrementFailedAttempts(ctx context.Context, ip, username string) {
-	// Увеличиваем счетчик неудачных попыток в Redis
+	// TODO: Увеличение счетчика неудачных попыток в Redis
 }
 
 func (h *AuthHandler) resetFailedAttempts(ctx context.Context, ip, username string) {
-	// Сбрасываем счетчик неудачных попыток в Redis
+	// TODO: Сброс счетчика неудачных попыток в Redis
 }
