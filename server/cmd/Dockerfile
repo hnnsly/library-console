@@ -9,7 +9,7 @@ RUN go mod download && go mod verify
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/pharmacy-server ./cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/library-server ./cmd/main.go
 
 
 # Этап 2: Финальный образ
@@ -17,13 +17,13 @@ FROM alpine:latest
 
 WORKDIR /app
 
-COPY --from=builder /app/pharmacy-server .
+COPY --from=builder /app/library-server .
 
-RUN chmod +x /app/pharmacy-server
+RUN chmod +x /app/library-server
 
 EXPOSE 8080
 
-CMD ["./pharmacy-server"]
+CMD ["./library-server"]
 
 LABEL org.opencontainers.image.source=https://github.com/hnnsly/library-console
 LABEL org.opencontainers.image.description="Backend API контейнер для консоли управления аптекой \"PharmShark\""
