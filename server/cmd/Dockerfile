@@ -12,7 +12,6 @@ COPY internal/ ./internal/
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/library-server ./cmd/main.go
 
 
-# Этап 2: Финальный образ
 FROM alpine:latest
 
 WORKDIR /app
