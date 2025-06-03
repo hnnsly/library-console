@@ -280,18 +280,6 @@ CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_is_active ON users(is_active);
 
--- Создаем первоначального администратора (пароль: admin123)
-INSERT INTO users (
-    username, email, password_hash, role, full_name, is_first_admin, is_active
-) VALUES (
-    'admin',
-    'admin@library.local',
-    '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- bcrypt hash для 'admin123'
-    'super_admin',
-    'Системный администратор',
-    true,
-    true
-);
 
 -- Комментарии к таблицам
 COMMENT ON TABLE halls IS 'Таблица читальных залов';
