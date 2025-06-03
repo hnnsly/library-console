@@ -54,12 +54,12 @@ func (h *Handler) Router() *fiber.App {
 	app.Use(logger.RequestLogger())
 
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://lab.somerka.ru",
+		AllowOrigins:     "http://lab.somerka.ru", // Убедитесь что это правильный домен
 		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH",
-		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-CSRF-Token", // Добавь нужные заголовки
-		AllowCredentials: true,                                                                     // Разрешить передачу cookie
-		ExposeHeaders:    "Content-Length,Content-Range",                                           // Если нужно клиенту читать эти заголовки
-		MaxAge:           86400,                                                                    // 1 час для кеширования preflight
+		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-CSRF-Token,Cookie",
+		AllowCredentials: true,         // ✅ Правильно
+		ExposeHeaders:    "Set-Cookie", // Добавить для cookies
+		MaxAge:           86400,
 	}))
 
 	// Health check route (no auth required)
