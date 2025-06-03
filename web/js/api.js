@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = "https://lab.somerka.ru";
 
 class ApiClient {
   constructor() {
