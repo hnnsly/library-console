@@ -1,1320 +1,837 @@
 <!doctype html>
-<html lang="ru" x-data="app">
+<html lang="ru">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Библиотека - Система управления</title>
-        <link rel="stylesheet" href="css/style.css" />
-        <link rel="icon" type="image/png" href="icon.png" />
+        <title>libr - Система управления библиотекой</title>
         <script
             defer
-            src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"
+            src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
         ></script>
-        <link
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-            rel="stylesheet"
-        />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        colors: {
+                            primary: {
+                                50: "#f0f9ff",
+                                100: "#e0f2fe",
+                                500: "#0ea5e9",
+                                600: "#0284c7",
+                                700: "#0369a1",
+                            },
+                        },
+                    },
+                },
+            };
+        </script>
+        <link rel="stylesheet" href="styles/main.css" />
     </head>
-    <body class="bg-gray-900 text-gray-100">
-        <!-- Auth Modal -->
-        <div
-            x-show="!isAuthenticated"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
-            x-transition
-        >
-            <div
-                class="bg-gray-800 rounded-2xl p-8 w-full max-w-md mx-4 shadow-2xl"
-            >
-                <div class="text-center mb-8">
-                    <i class="fas fa-book text-4xl text-blue-500 mb-4"></i>
-                    <h1 class="text-2xl font-bold text-white">Библиотека</h1>
-                    <p class="text-gray-400">Система управления</p>
-                </div>
-
-                <form @submit.prevent="login" class="space-y-6">
-                    <div>
-                        <label
-                            class="block text-sm font-medium text-gray-300 mb-2"
-                        >
-                            <i class="fas fa-user mr-2"></i>Логин
-                        </label>
-                        <input
-                            type="text"
-                            x-model="loginForm.username"
-                            class="input-field"
-                            placeholder="Введите логин"
-                            required
-                        />
-                    </div>
-
-                    <div>
-                        <label
-                            class="block text-sm font-medium text-gray-300 mb-2"
-                        >
-                            <i class="fas fa-lock mr-2"></i>Пароль
-                        </label>
-                        <input
-                            type="password"
-                            x-model="loginForm.password"
-                            class="input-field"
-                            placeholder="Введите пароль"
-                            required
-                        />
-                    </div>
-
-                    <button
-                        type="submit"
-                        :disabled="loading"
-                        class="btn-primary w-full"
-                        :class="{'opacity-50': loading}"
-                    >
-                        <span x-show="!loading">Войти</span>
-                        <span
-                            x-show="loading"
-                            class="flex items-center justify-center"
-                        >
-                            <i class="fas fa-spinner fa-spin mr-2"></i>Вход...
-                        </span>
-                    </button>
-                </form>
-
-                <div
-                    x-show="error"
-                    class="mt-4 p-3 bg-red-900 border border-red-700 rounded-lg text-red-300 text-sm"
-                >
-                    <i class="fas fa-exclamation-triangle mr-2"></i>
-                    <span x-text="error"></span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Main App -->
-        <div x-show="isAuthenticated" class="min-h-screen" x-transition>
-            <!-- Header -->
-            <header
-                class="bg-gray-800 border-b border-gray-700 sticky top-0 z-40"
-            >
+    <body class="bg-gray-50 font-sans">
+        <div id="app" x-data="app()" class="min-h-screen">
+            <!-- Navigation -->
+            <nav x-show="isAuthenticated" class="bg-white shadow-sm border-b">
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div class="flex justify-between items-center h-16">
+                    <div class="flex justify-between h-16">
                         <div class="flex items-center">
-                            <i
-                                class="fas fa-book text-2xl text-blue-500 mr-3"
-                            ></i>
-                            <h1 class="text-xl font-bold text-white">
-                                Библиотека
-                            </h1>
-                        </div>
-
-                        <nav class="hidden md:flex space-x-8">
-                            <button
-                                @click="currentView = 'dashboard'"
-                                :class="{'text-blue-400': currentView === 'dashboard', 'text-gray-300': currentView !== 'dashboard'}"
-                                class="nav-link"
-                            >
-                                <i class="fas fa-tachometer-alt mr-2"></i>Панель
-                            </button>
-                            <button
-                                @click="currentView = 'books'"
-                                :class="{'text-blue-400': currentView === 'books', 'text-gray-300': currentView !== 'books'}"
-                                class="nav-link"
-                            >
-                                <i class="fas fa-book mr-2"></i>Книги
-                            </button>
-                            <button
-                                @click="currentView = 'readers'"
-                                :class="{'text-blue-400': currentView === 'readers', 'text-gray-300': currentView !== 'readers'}"
-                                class="nav-link"
-                            >
-                                <i class="fas fa-users mr-2"></i>Читатели
-                            </button>
-                            <button
-                                @click="currentView = 'loans'"
-                                :class="{'text-blue-400': currentView === 'loans', 'text-gray-300': currentView !== 'loans'}"
-                                class="nav-link"
-                            >
-                                <i class="fas fa-handshake mr-2"></i>Выдачи
-                            </button>
-                            <button
-                                @click="currentView = 'statistics'"
-                                :class="{'text-blue-400': currentView === 'statistics', 'text-gray-300': currentView !== 'statistics'}"
-                                class="nav-link"
-                            >
-                                <i class="fas fa-chart-bar mr-2"></i>Статистика
-                            </button>
-                        </nav>
-
-                        <div class="flex items-center space-x-4">
-                            <div class="text-sm text-gray-300">
-                                <i class="fas fa-user-circle mr-2"></i>
-                                <span
-                                    x-text="user?.full_name || user?.username"
-                                ></span>
+                            <div class="flex-shrink-0">
+                                <h1 class="text-2xl font-bold text-gray-900">
+                                    libr
+                                </h1>
                             </div>
-                            <button @click="logout" class="btn-secondary">
-                                <i class="fas fa-sign-out-alt mr-2"></i>Выйти
+                            <div class="hidden md:ml-6 md:flex md:space-x-8">
+                                <button
+                                    @click="setActiveView('dashboard')"
+                                    :class="activeView === 'dashboard' ? 'border-primary-500 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                                    class="border-b-2 py-4 px-1 text-sm font-medium transition-colors"
+                                >
+                                    Дашборд
+                                </button>
+                                <button
+                                    @click="setActiveView('books')"
+                                    :class="activeView === 'books' ? 'border-primary-500 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                                    class="border-b-2 py-4 px-1 text-sm font-medium transition-colors"
+                                >
+                                    Книги
+                                </button>
+                                <button
+                                    @click="setActiveView('readers')"
+                                    :class="activeView === 'readers' ? 'border-primary-500 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                                    class="border-b-2 py-4 px-1 text-sm font-medium transition-colors"
+                                >
+                                    Читатели
+                                </button>
+                                <button
+                                    @click="setActiveView('loans')"
+                                    :class="activeView === 'loans' ? 'border-primary-500 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                                    class="border-b-2 py-4 px-1 text-sm font-medium transition-colors"
+                                >
+                                    Выдачи
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <span
+                                class="text-sm text-gray-700"
+                                x-text="user?.full_name"
+                            ></span>
+                            <button
+                                @click="logout()"
+                                class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                            >
+                                Выйти
                             </button>
                         </div>
                     </div>
-                </div>
-            </header>
-
-            <!-- Mobile Navigation -->
-            <nav class="md:hidden bg-gray-800 border-b border-gray-700">
-                <div class="px-4 py-3 space-y-2">
-                    <button
-                        @click="currentView = 'dashboard'"
-                        :class="{'bg-gray-700': currentView === 'dashboard'}"
-                        class="mobile-nav-item"
-                    >
-                        <i class="fas fa-tachometer-alt mr-2"></i>Панель
-                    </button>
-                    <button
-                        @click="currentView = 'books'"
-                        :class="{'bg-gray-700': currentView === 'books'}"
-                        class="mobile-nav-item"
-                    >
-                        <i class="fas fa-book mr-2"></i>Книги
-                    </button>
-                    <button
-                        @click="currentView = 'readers'"
-                        :class="{'bg-gray-700': currentView === 'readers'}"
-                        class="mobile-nav-item"
-                    >
-                        <i class="fas fa-users mr-2"></i>Читатели
-                    </button>
-                    <button
-                        @click="currentView = 'loans'"
-                        :class="{'bg-gray-700': currentView === 'loans'}"
-                        class="mobile-nav-item"
-                    >
-                        <i class="fas fa-handshake mr-2"></i>Выдачи
-                    </button>
-                    <button
-                        @click="currentView = 'statistics'"
-                        :class="{'bg-gray-700': currentView === 'statistics'}"
-                        class="mobile-nav-item"
-                    >
-                        <i class="fas fa-chart-bar mr-2"></i>Статистика
-                    </button>
                 </div>
             </nav>
 
+            <!-- Login View -->
+            <div
+                x-show="!isAuthenticated && !isLoading"
+                x-data="loginComponent()"
+                class="min-h-screen flex items-center justify-center"
+            >
+                <div class="max-w-md w-full space-y-8 p-8">
+                    <div class="text-center">
+                        <h2 class="text-3xl font-bold text-gray-900">libr</h2>
+                        <p class="mt-2 text-sm text-gray-600">
+                            Войдите в систему управления библиотекой
+                        </p>
+                    </div>
+                    <form @submit.prevent="login()" class="mt-8 space-y-6">
+                        <div class="space-y-4">
+                            <div>
+                                <label
+                                    for="username"
+                                    class="block text-sm font-medium text-gray-700"
+                                    >Логин</label
+                                >
+                                <input
+                                    x-model="credentials.username"
+                                    type="text"
+                                    id="username"
+                                    required
+                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                                />
+                            </div>
+                            <div>
+                                <label
+                                    for="password"
+                                    class="block text-sm font-medium text-gray-700"
+                                    >Пароль</label
+                                >
+                                <input
+                                    x-model="credentials.password"
+                                    type="password"
+                                    id="password"
+                                    required
+                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                                />
+                            </div>
+                        </div>
+                        <div
+                            x-show="error"
+                            class="text-red-600 text-sm"
+                            x-text="error"
+                        ></div>
+                        <button
+                            type="submit"
+                            :disabled="isSubmitting"
+                            class="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <span x-show="!isSubmitting">Войти</span>
+                            <span x-show="isSubmitting">Вход...</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
             <!-- Main Content -->
-            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <!-- Dashboard -->
-                <div x-show="currentView === 'dashboard'" x-transition>
+            <main
+                x-show="isAuthenticated && !isLoading"
+                class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8"
+            >
+                <!-- Dashboard View -->
+                <div
+                    x-show="activeView === 'dashboard'"
+                    x-data="dashboardComponent()"
+                >
                     <div class="mb-8">
-                        <h2 class="text-3xl font-bold text-white mb-2">
-                            Панель управления
-                        </h2>
-                        <p class="text-gray-400">Обзор состояния библиотеки</p>
+                        <h1 class="text-2xl font-bold text-gray-900">
+                            Дашборд
+                        </h1>
+                        <p class="mt-1 text-sm text-gray-600">
+                            Обзор состояния библиотеки
+                        </p>
                     </div>
 
                     <div
                         class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
                     >
-                        <div class="stat-card">
-                            <div class="flex items-center">
-                                <div
-                                    class="p-3 bg-blue-500 bg-opacity-20 rounded-full"
-                                >
-                                    <i
-                                        class="fas fa-book text-2xl text-blue-400"
-                                    ></i>
-                                </div>
-                                <div class="ml-4">
-                                    <p class="text-sm text-gray-400">
-                                        Всего книг
-                                    </p>
-                                    <p
-                                        class="text-2xl font-bold text-white"
-                                        x-text="dashboardStats.totalBooks || '0'"
-                                    ></p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="stat-card">
-                            <div class="flex items-center">
-                                <div
-                                    class="p-3 bg-green-500 bg-opacity-20 rounded-full"
-                                >
-                                    <i
-                                        class="fas fa-users text-2xl text-green-400"
-                                    ></i>
-                                </div>
-                                <div class="ml-4">
-                                    <p class="text-sm text-gray-400">
-                                        Читатели
-                                    </p>
-                                    <p
-                                        class="text-2xl font-bold text-white"
-                                        x-text="dashboardStats.totalReaders || '0'"
-                                    ></p>
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div
+                                            class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center"
+                                        >
+                                            <svg
+                                                class="w-5 h-5 text-white"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    stroke-width="2"
+                                                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
+                                                ></path>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt
+                                                class="text-sm font-medium text-gray-500 truncate"
+                                            >
+                                                Всего читателей
+                                            </dt>
+                                            <dd
+                                                class="text-lg font-medium text-gray-900"
+                                                x-text="stats.total_readers || 0"
+                                            ></dd>
+                                        </dl>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="stat-card">
-                            <div class="flex items-center">
-                                <div
-                                    class="p-3 bg-yellow-500 bg-opacity-20 rounded-full"
-                                >
-                                    <i
-                                        class="fas fa-clock text-2xl text-yellow-400"
-                                    ></i>
-                                </div>
-                                <div class="ml-4">
-                                    <p class="text-sm text-gray-400">
-                                        Просрочено
-                                    </p>
-                                    <p
-                                        class="text-2xl font-bold text-white"
-                                        x-text="dashboardStats.overdueBooks || '0'"
-                                    ></p>
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div
+                                            class="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center"
+                                        >
+                                            <svg
+                                                class="w-5 h-5 text-white"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    stroke-width="2"
+                                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                ></path>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt
+                                                class="text-sm font-medium text-gray-500 truncate"
+                                            >
+                                                Активные читатели
+                                            </dt>
+                                            <dd
+                                                class="text-lg font-medium text-gray-900"
+                                                x-text="stats.active_readers_count || 0"
+                                            ></dd>
+                                        </dl>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="stat-card">
-                            <div class="flex items-center">
-                                <div
-                                    class="p-3 bg-red-500 bg-opacity-20 rounded-full"
-                                >
-                                    <i
-                                        class="fas fa-exclamation-triangle text-2xl text-red-400"
-                                    ></i>
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div
+                                            class="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center"
+                                        >
+                                            <svg
+                                                class="w-5 h-5 text-white"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    stroke-width="2"
+                                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                                                ></path>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt
+                                                class="text-sm font-medium text-gray-500 truncate"
+                                            >
+                                                Просроченные книги
+                                            </dt>
+                                            <dd
+                                                class="text-lg font-medium text-gray-900"
+                                                x-text="stats.overdue_books_count || 0"
+                                            ></dd>
+                                        </dl>
+                                    </div>
                                 </div>
-                                <div class="ml-4">
-                                    <p class="text-sm text-gray-400">
-                                        Должники
-                                    </p>
-                                    <p
-                                        class="text-2xl font-bold text-white"
-                                        x-text="dashboardStats.debtors || '0'"
-                                    ></p>
+                            </div>
+                        </div>
+
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div
+                                            class="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center"
+                                        >
+                                            <svg
+                                                class="w-5 h-5 text-white"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    stroke-width="2"
+                                                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"
+                                                ></path>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt
+                                                class="text-sm font-medium text-gray-500 truncate"
+                                            >
+                                                Должники
+                                            </dt>
+                                            <dd
+                                                class="text-lg font-medium text-gray-900"
+                                                x-text="stats.debtors_count || 0"
+                                            ></dd>
+                                        </dl>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Recent Activity -->
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div class="card">
-                            <h3 class="text-xl font-semibold text-white mb-4">
-                                <i class="fas fa-clock mr-2 text-yellow-400"></i
-                                >Книги к возврату сегодня
+                    <div class="bg-white shadow rounded-lg">
+                        <div class="px-4 py-5 sm:p-6">
+                            <h3
+                                class="text-lg leading-6 font-medium text-gray-900 mb-4"
+                            >
+                                Последние операции
                             </h3>
-                            <div class="space-y-3">
-                                <template
-                                    x-for="book in booksDueToday"
-                                    :key="book.id"
-                                >
-                                    <div
-                                        class="flex items-center justify-between p-3 bg-gray-700 rounded-lg"
-                                    >
-                                        <div>
-                                            <p
-                                                class="font-medium text-white"
-                                                x-text="book.title"
-                                            ></p>
-                                            <p
-                                                class="text-sm text-gray-400"
-                                                x-text="book.reader_name"
-                                            ></p>
-                                        </div>
-                                        <span class="text-yellow-400 text-sm"
-                                            >Сегодня</span
-                                        >
-                                    </div>
-                                </template>
-                                <div
-                                    x-show="!booksDueToday.length"
-                                    class="text-center text-gray-400 py-4"
-                                >
-                                    Нет книг к возврату сегодня
-                                </div>
+                            <div
+                                x-show="recentOperations.length === 0"
+                                class="text-gray-500 text-center py-4"
+                            >
+                                Нет последних операций
                             </div>
-                        </div>
-
-                        <div class="card">
-                            <h3 class="text-xl font-semibold text-white mb-4">
-                                <i
-                                    class="fas fa-exclamation-triangle mr-2 text-red-400"
-                                ></i
-                                >Просроченные книги
-                            </h3>
                             <div class="space-y-3">
                                 <template
-                                    x-for="book in overdueBooks.slice(0, 5)"
-                                    :key="book.id"
+                                    x-for="operation in recentOperations"
+                                    :key="operation.id"
                                 >
                                     <div
-                                        class="flex items-center justify-between p-3 bg-gray-700 rounded-lg"
+                                        class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg"
                                     >
-                                        <div>
+                                        <div class="flex-shrink-0">
+                                            <div
+                                                class="w-2 h-2 bg-primary-500 rounded-full"
+                                            ></div>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
                                             <p
-                                                class="font-medium text-white"
-                                                x-text="book.title"
+                                                class="text-sm text-gray-900"
+                                                x-text="operation.description"
                                             ></p>
                                             <p
-                                                class="text-sm text-gray-400"
-                                                x-text="book.reader_name"
+                                                class="text-xs text-gray-500"
+                                                x-text="formatDate(operation.created_at)"
                                             ></p>
                                         </div>
-                                        <span
-                                            class="text-red-400 text-sm"
-                                            x-text="book.days_overdue + ' дн.'"
-                                        ></span>
                                     </div>
                                 </template>
-                                <div
-                                    x-show="!overdueBooks.length"
-                                    class="text-center text-gray-400 py-4"
-                                >
-                                    Нет просроченных книг
-                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Books Section -->
-                <div x-show="currentView === 'books'" x-transition>
-                    <div class="flex justify-between items-center mb-8">
-                        <div>
-                            <h2 class="text-3xl font-bold text-white mb-2">
+                <!-- Books View -->
+                <div x-show="activeView === 'books'" x-data="booksComponent()">
+                    <div class="sm:flex sm:items-center mb-6">
+                        <div class="sm:flex-auto">
+                            <h1 class="text-2xl font-bold text-gray-900">
                                 Книги
-                            </h2>
-                            <p class="text-gray-400">
+                            </h1>
+                            <p class="mt-1 text-sm text-gray-600">
                                 Управление каталогом книг
                             </p>
                         </div>
-                        <button
-                            @click="showModal = 'addBook'"
-                            class="btn-primary"
-                        >
-                            <i class="fas fa-plus mr-2"></i>Добавить книгу
-                        </button>
+                        <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+                            <button
+                                @click="showCreateModal = true"
+                                class="inline-flex items-center justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                            >
+                                Добавить книгу
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- Search -->
-                    <div class="card mb-6">
+                    <!-- Search and Filters -->
+                    <div class="mb-6 bg-white shadow rounded-lg p-4">
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label
-                                    class="block text-sm font-medium text-gray-300 mb-2"
-                                    >Поиск по названию</label
+                                    for="search"
+                                    class="block text-sm font-medium text-gray-700"
+                                    >Поиск</label
                                 >
                                 <input
+                                    x-model="searchQuery"
+                                    @input.debounce.500ms="searchBooks()"
                                     type="text"
-                                    x-model="searchFilters.title"
-                                    @input="searchBooks"
-                                    class="input-field"
-                                    placeholder="Название книги"
+                                    placeholder="Название, автор, ISBN..."
+                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                                 />
                             </div>
                             <div>
                                 <label
-                                    class="block text-sm font-medium text-gray-300 mb-2"
-                                    >Автор</label
+                                    for="category"
+                                    class="block text-sm font-medium text-gray-700"
+                                    >Категория</label
                                 >
-                                <input
-                                    type="text"
-                                    x-model="searchFilters.author"
-                                    @input="searchBooks"
-                                    class="input-field"
-                                    placeholder="Автор"
-                                />
+                                <select
+                                    x-model="selectedCategory"
+                                    @change="searchBooks()"
+                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                                >
+                                    <option value="">Все категории</option>
+                                    <template
+                                        x-for="category in categories"
+                                        :key="category.id"
+                                    >
+                                        <option
+                                            :value="category.id"
+                                            x-text="category.name"
+                                        ></option>
+                                    </template>
+                                </select>
                             </div>
                             <div>
                                 <label
-                                    class="block text-sm font-medium text-gray-300 mb-2"
-                                    >ISBN</label
+                                    for="hall"
+                                    class="block text-sm font-medium text-gray-700"
+                                    >Читальный зал</label
                                 >
-                                <input
-                                    type="text"
-                                    x-model="searchFilters.isbn"
-                                    @input="searchBooks"
-                                    class="input-field"
-                                    placeholder="ISBN"
-                                />
+                                <select
+                                    x-model="selectedHall"
+                                    @change="searchBooks()"
+                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                                >
+                                    <option value="">Все залы</option>
+                                    <template
+                                        x-for="hall in halls"
+                                        :key="hall.id"
+                                    >
+                                        <option
+                                            :value="hall.id"
+                                            x-text="hall.name"
+                                        ></option>
+                                    </template>
+                                </select>
                             </div>
                         </div>
                     </div>
 
                     <!-- Books List -->
-                    <div class="card">
-                        <div class="overflow-x-auto">
-                            <table class="w-full">
-                                <thead>
-                                    <tr class="border-b border-gray-700">
-                                        <th class="table-header">Название</th>
-                                        <th class="table-header">Автор</th>
-                                        <th class="table-header">Год</th>
-                                        <th class="table-header">Экземпляры</th>
-                                        <th class="table-header">Доступно</th>
-                                        <th class="table-header">Действия</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <template
-                                        x-for="book in books"
-                                        :key="book.id"
-                                    >
-                                        <tr
-                                            class="border-b border-gray-700 hover:bg-gray-700 transition-colors"
-                                        >
-                                            <td class="table-cell">
-                                                <div>
-                                                    <p
-                                                        class="font-medium text-white"
-                                                        x-text="book.title"
-                                                    ></p>
-                                                    <p
-                                                        class="text-sm text-gray-400"
-                                                        x-text="book.book_code"
-                                                    ></p>
-                                                </div>
-                                            </td>
-                                            <td
-                                                class="table-cell text-gray-300"
-                                                x-text="book.author"
-                                            ></td>
-                                            <td
-                                                class="table-cell text-gray-300"
-                                                x-text="book.publication_year"
-                                            ></td>
-                                            <td
-                                                class="table-cell text-gray-300"
-                                                x-text="book.total_copies"
-                                            ></td>
-                                            <td class="table-cell">
-                                                <span
-                                                    :class="{'text-green-400': book.available_copies > 0, 'text-red-400': book.available_copies === 0}"
-                                                    x-text="book.available_copies"
-                                                ></span>
-                                            </td>
-                                            <td class="table-cell">
-                                                <div class="flex space-x-2">
-                                                    <button
-                                                        @click="viewBook(book)"
-                                                        class="btn-sm btn-secondary"
-                                                    >
-                                                        <i
-                                                            class="fas fa-eye"
-                                                        ></i>
-                                                    </button>
-                                                    <button
-                                                        @click="editBook(book)"
-                                                        class="btn-sm btn-primary"
-                                                    >
-                                                        <i
-                                                            class="fas fa-edit"
-                                                        ></i>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </template>
-                                </tbody>
-                            </table>
-
-                            <div
-                                x-show="!books.length && !loading"
-                                class="text-center text-gray-400 py-8"
-                            >
-                                Книги не найдены
+                    <div class="bg-white shadow rounded-lg">
+                        <div class="px-4 py-5 sm:p-6">
+                            <div x-show="isLoading" class="text-center py-4">
+                                <div
+                                    class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"
+                                ></div>
                             </div>
-
-                            <div x-show="loading" class="text-center py-8">
-                                <i
-                                    class="fas fa-spinner fa-spin text-2xl text-blue-400"
-                                ></i>
+                            <div
+                                x-show="!isLoading && books.length === 0"
+                                class="text-center py-8"
+                            >
+                                <p class="text-gray-500">Книги не найдены</p>
+                            </div>
+                            <div
+                                x-show="!isLoading && books.length > 0"
+                                class="space-y-4"
+                            >
+                                <template x-for="book in books" :key="book.id">
+                                    <div
+                                        class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                                    >
+                                        <div
+                                            class="flex justify-between items-start"
+                                        >
+                                            <div class="flex-1">
+                                                <h3
+                                                    class="text-lg font-medium text-gray-900"
+                                                    x-text="book.title"
+                                                ></h3>
+                                                <p
+                                                    class="text-sm text-gray-600"
+                                                    x-text="book.author"
+                                                ></p>
+                                                <div
+                                                    class="mt-2 flex items-center space-x-4 text-sm text-gray-500"
+                                                >
+                                                    <span
+                                                        x-text="'Код: ' + book.book_code"
+                                                    ></span>
+                                                    <span
+                                                        x-text="'Год: ' + book.publication_year"
+                                                    ></span>
+                                                    <span
+                                                        x-text="'Доступно: ' + book.available_copies + '/' + book.total_copies"
+                                                    ></span>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="flex items-center space-x-2"
+                                            >
+                                                <span
+                                                    :class="book.available_copies > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                                >
+                                                    <span
+                                                        x-text="book.available_copies > 0 ? 'Доступна' : 'Недоступна'"
+                                                    ></span>
+                                                </span>
+                                                <button
+                                                    @click="editBook(book)"
+                                                    class="text-primary-600 hover:text-primary-900 text-sm font-medium"
+                                                >
+                                                    Редактировать
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Readers Section -->
-                <div x-show="currentView === 'readers'" x-transition>
-                    <div class="flex justify-between items-center mb-8">
-                        <div>
-                            <h2 class="text-3xl font-bold text-white mb-2">
+                <!-- Readers View -->
+                <div
+                    x-show="activeView === 'readers'"
+                    x-data="readersComponent()"
+                >
+                    <div class="sm:flex sm:items-center mb-6">
+                        <div class="sm:flex-auto">
+                            <h1 class="text-2xl font-bold text-gray-900">
                                 Читатели
-                            </h2>
-                            <p class="text-gray-400">
-                                Управление читательскими билетами
+                            </h1>
+                            <p class="mt-1 text-sm text-gray-600">
+                                Управление читателями библиотеки
                             </p>
                         </div>
-                        <button
-                            @click="showModal = 'addReader'"
-                            class="btn-primary"
-                        >
-                            <i class="fas fa-plus mr-2"></i>Добавить читателя
-                        </button>
+                        <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+                            <button
+                                @click="showCreateModal = true"
+                                class="inline-flex items-center justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700"
+                            >
+                                Добавить читателя
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Search -->
-                    <div class="card mb-6">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label
-                                    class="block text-sm font-medium text-gray-300 mb-2"
-                                    >Поиск по имени</label
-                                >
-                                <input
-                                    type="text"
-                                    x-model="readerSearchTerm"
-                                    @input="searchReaders"
-                                    class="input-field"
-                                    placeholder="ФИО читателя"
-                                />
-                            </div>
-                            <div>
-                                <label
-                                    class="block text-sm font-medium text-gray-300 mb-2"
-                                    >Номер билета</label
-                                >
-                                <input
-                                    type="text"
-                                    x-model="readerTicketSearch"
-                                    @input="searchReaderByTicket"
-                                    class="input-field"
-                                    placeholder="Номер читательского билета"
-                                />
-                            </div>
+                    <div class="mb-6 bg-white shadow rounded-lg p-4">
+                        <div class="max-w-md">
+                            <label
+                                for="reader-search"
+                                class="block text-sm font-medium text-gray-700"
+                                >Поиск читателей</label
+                            >
+                            <input
+                                x-model="searchQuery"
+                                @input.debounce.500ms="searchReaders()"
+                                type="text"
+                                placeholder="ФИО или номер билета..."
+                                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                            />
                         </div>
                     </div>
 
                     <!-- Readers List -->
-                    <div class="card">
-                        <div class="overflow-x-auto">
-                            <table class="w-full">
-                                <thead>
-                                    <tr class="border-b border-gray-700">
-                                        <th class="table-header">ФИО</th>
-                                        <th class="table-header">Билет</th>
-                                        <th class="table-header">Телефон</th>
-                                        <th class="table-header">Email</th>
-                                        <th class="table-header">Статус</th>
-                                        <th class="table-header">Действия</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <template
-                                        x-for="reader in readers"
-                                        :key="reader.id"
-                                    >
-                                        <tr
-                                            class="border-b border-gray-700 hover:bg-gray-700 transition-colors"
-                                        >
-                                            <td class="table-cell">
-                                                <p
-                                                    class="font-medium text-white"
-                                                    x-text="reader.full_name"
-                                                ></p>
-                                            </td>
-                                            <td
-                                                class="table-cell text-gray-300"
-                                                x-text="reader.ticket_number"
-                                            ></td>
-                                            <td
-                                                class="table-cell text-gray-300"
-                                                x-text="reader.phone || '-'"
-                                            ></td>
-                                            <td
-                                                class="table-cell text-gray-300"
-                                                x-text="reader.email || '-'"
-                                            ></td>
-                                            <td class="table-cell">
-                                                <span
-                                                    :class="{
-                                                'status-active': reader.status === 'active',
-                                                'status-inactive': reader.status !== 'active'
-                                            }"
-                                                    x-text="reader.status"
-                                                ></span>
-                                            </td>
-                                            <td class="table-cell">
-                                                <div class="flex space-x-2">
-                                                    <button
-                                                        @click="viewReader(reader)"
-                                                        class="btn-sm btn-secondary"
-                                                    >
-                                                        <i
-                                                            class="fas fa-eye"
-                                                        ></i>
-                                                    </button>
-                                                    <button
-                                                        @click="editReader(reader)"
-                                                        class="btn-sm btn-primary"
-                                                    >
-                                                        <i
-                                                            class="fas fa-edit"
-                                                        ></i>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </template>
-                                </tbody>
-                            </table>
-
+                    <div class="bg-white shadow rounded-lg">
+                        <div class="px-4 py-5 sm:p-6">
+                            <div x-show="isLoading" class="text-center py-4">
+                                <div
+                                    class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"
+                                ></div>
+                            </div>
                             <div
-                                x-show="!readers.length && !loading"
-                                class="text-center text-gray-400 py-8"
+                                x-show="!isLoading && readers.length === 0"
+                                class="text-center py-8"
                             >
-                                Читатели не найдены
+                                <p class="text-gray-500">Читатели не найдены</p>
+                            </div>
+                            <div
+                                x-show="!isLoading && readers.length > 0"
+                                class="space-y-4"
+                            >
+                                <template
+                                    x-for="reader in readers"
+                                    :key="reader.id"
+                                >
+                                    <div
+                                        class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                                    >
+                                        <div
+                                            class="flex justify-between items-start"
+                                        >
+                                            <div class="flex-1">
+                                                <h3
+                                                    class="text-lg font-medium text-gray-900"
+                                                    x-text="reader.full_name"
+                                                ></h3>
+                                                <div
+                                                    class="mt-1 flex items-center space-x-4 text-sm text-gray-600"
+                                                >
+                                                    <span
+                                                        x-text="'Билет: ' + reader.ticket_number"
+                                                    ></span>
+                                                    <span
+                                                        x-show="reader.phone"
+                                                        x-text="reader.phone"
+                                                    ></span>
+                                                    <span
+                                                        x-show="reader.email"
+                                                        x-text="reader.email"
+                                                    ></span>
+                                                </div>
+                                                <div
+                                                    class="mt-2 flex items-center space-x-4 text-sm text-gray-500"
+                                                >
+                                                    <span
+                                                        x-text="'Задолженность: ' + (reader.total_debt || '0.00') + ' ₽'"
+                                                    ></span>
+                                                    <span
+                                                        x-text="'Рейтинг: ' + (reader.reader_rating || 'N/A')"
+                                                    ></span>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="flex items-center space-x-2"
+                                            >
+                                                <span
+                                                    :class="getStatusColor(reader.status)"
+                                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                                >
+                                                    <span
+                                                        x-text="getStatusText(reader.status)"
+                                                    ></span>
+                                                </span>
+                                                <button
+                                                    @click="viewReader(reader)"
+                                                    class="text-primary-600 hover:text-primary-900 text-sm font-medium"
+                                                >
+                                                    Подробнее
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Loans Section -->
-                <div x-show="currentView === 'loans'" x-transition>
-                    <div class="flex justify-between items-center mb-8">
-                        <div>
-                            <h2 class="text-3xl font-bold text-white mb-2">
+                <!-- Loans View -->
+                <div x-show="activeView === 'loans'" x-data="loansComponent()">
+                    <div class="sm:flex sm:items-center mb-6">
+                        <div class="sm:flex-auto">
+                            <h1 class="text-2xl font-bold text-gray-900">
                                 Выдачи
-                            </h2>
-                            <p class="text-gray-400">Управление выдачей книг</p>
+                            </h1>
+                            <p class="mt-1 text-sm text-gray-600">
+                                Управление выдачами книг
+                            </p>
                         </div>
-                        <button
-                            @click="showModal = 'createLoan'"
-                            class="btn-primary"
-                        >
-                            <i class="fas fa-plus mr-2"></i>Выдать книгу
-                        </button>
+                        <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+                            <button
+                                @click="showCreateModal = true"
+                                class="inline-flex items-center justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700"
+                            >
+                                Новая выдача
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- Filter Tabs -->
-                    <div class="flex space-x-1 mb-6">
-                        <button
-                            @click="loanFilter = 'all'"
-                            :class="{'bg-blue-500': loanFilter === 'all', 'bg-gray-700': loanFilter !== 'all'}"
-                            class="px-4 py-2 rounded-lg text-white transition-colors"
-                        >
-                            Все выдачи
-                        </button>
-                        <button
-                            @click="loanFilter = 'active'"
-                            :class="{'bg-blue-500': loanFilter === 'active', 'bg-gray-700': loanFilter !== 'active'}"
-                            class="px-4 py-2 rounded-lg text-white transition-colors"
-                        >
-                            Активные
-                        </button>
-                        <button
-                            @click="loanFilter = 'overdue'"
-                            :class="{'bg-blue-500': loanFilter === 'overdue', 'bg-gray-700': loanFilter !== 'overdue'}"
-                            class="px-4 py-2 rounded-lg text-white transition-colors"
-                        >
-                            Просроченные
-                        </button>
-                        <button
-                            @click="loanFilter = 'returned'"
-                            :class="{'bg-blue-500': loanFilter === 'returned', 'bg-gray-700': loanFilter !== 'returned'}"
-                            class="px-4 py-2 rounded-lg text-white transition-colors"
-                        >
-                            Возвращенные
-                        </button>
+                    <!-- Filters -->
+                    <div class="mb-6 bg-white shadow rounded-lg p-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label
+                                    class="block text-sm font-medium text-gray-700"
+                                    >Статус</label
+                                >
+                                <select
+                                    x-model="statusFilter"
+                                    @change="loadLoans()"
+                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                                >
+                                    <option value="">Все выдачи</option>
+                                    <option value="active">Активные</option>
+                                    <option value="overdue">
+                                        Просроченные
+                                    </option>
+                                    <option value="returned">
+                                        Возвращенные
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="flex items-end">
+                                <button
+                                    @click="loadOverdueBooks()"
+                                    class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                                >
+                                    Просроченные книги
+                                </button>
+                            </div>
+                            <div class="flex items-end">
+                                <button
+                                    @click="loadDueToday()"
+                                    class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                                >
+                                    Возврат сегодня
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Loans List -->
-                    <div class="card">
-                        <div class="overflow-x-auto">
-                            <table class="w-full">
-                                <thead>
-                                    <tr class="border-b border-gray-700">
-                                        <th class="table-header">Книга</th>
-                                        <th class="table-header">Читатель</th>
-                                        <th class="table-header">Выдана</th>
-                                        <th class="table-header">
-                                            Срок возврата
-                                        </th>
-                                        <th class="table-header">Статус</th>
-                                        <th class="table-header">Действия</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <template
-                                        x-for="loan in filteredLoans"
-                                        :key="loan.id"
+                    <div class="bg-white shadow rounded-lg">
+                        <div class="px-4 py-5 sm:p-6">
+                            <div x-show="isLoading" class="text-center py-4">
+                                <div
+                                    class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"
+                                ></div>
+                            </div>
+                            <div
+                                x-show="!isLoading && loans.length === 0"
+                                class="text-center py-8"
+                            >
+                                <p class="text-gray-500">Выдачи не найдены</p>
+                            </div>
+                            <div
+                                x-show="!isLoading && loans.length > 0"
+                                class="space-y-4"
+                            >
+                                <template x-for="loan in loans" :key="loan.id">
+                                    <div
+                                        class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
                                     >
-                                        <tr
-                                            class="border-b border-gray-700 hover:bg-gray-700 transition-colors"
+                                        <div
+                                            class="flex justify-between items-start"
                                         >
-                                            <td class="table-cell">
+                                            <div class="flex-1">
+                                                <h3
+                                                    class="text-lg font-medium text-gray-900"
+                                                    x-text="loan.book?.title || 'Неизвестная книга'"
+                                                ></h3>
                                                 <p
-                                                    class="font-medium text-white"
-                                                    x-text="loan.book_title"
+                                                    class="text-sm text-gray-600"
+                                                    x-text="loan.reader?.full_name || 'Неизвестный читатель'"
                                                 ></p>
-                                                <p
-                                                    class="text-sm text-gray-400"
-                                                    x-text="loan.book_author"
-                                                ></p>
-                                            </td>
-                                            <td
-                                                class="table-cell text-gray-300"
-                                                x-text="loan.reader_name"
-                                            ></td>
-                                            <td
-                                                class="table-cell text-gray-300"
-                                                x-text="formatDate(loan.loan_date)"
-                                            ></td>
-                                            <td
-                                                class="table-cell text-gray-300"
-                                                x-text="formatDate(loan.due_date)"
-                                            ></td>
-                                            <td class="table-cell">
+                                                <div
+                                                    class="mt-2 flex items-center space-x-4 text-sm text-gray-500"
+                                                >
+                                                    <span
+                                                        x-text="'Выдана: ' + formatDate(loan.loan_date)"
+                                                    ></span>
+                                                    <span
+                                                        x-text="'Вернуть до: ' + formatDate(loan.due_date)"
+                                                    ></span>
+                                                    <span
+                                                        x-show="loan.renewals_count > 0"
+                                                        x-text="'Продлений: ' + loan.renewals_count"
+                                                    ></span>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="flex items-center space-x-2"
+                                            >
                                                 <span
-                                                    :class="{
-                                                'status-active': loan.status === 'active',
-                                                'status-overdue': loan.status === 'overdue',
-                                                'status-returned': loan.status === 'returned'
-                                            }"
-                                                    x-text="getStatusText(loan.status)"
-                                                ></span>
-                                            </td>
-                                            <td class="table-cell">
-                                                <div class="flex space-x-2">
+                                                    :class="getLoanStatusColor(loan)"
+                                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                                >
+                                                    <span
+                                                        x-text="getLoanStatusText(loan)"
+                                                    ></span>
+                                                </span>
+                                                <div
+                                                    x-show="loan.status === 'active'"
+                                                    class="flex space-x-2"
+                                                >
                                                     <button
-                                                        x-show="loan.status === 'active'"
-                                                        @click="returnBook(loan)"
-                                                        class="btn-sm btn-success"
+                                                        @click="renewLoan(loan)"
+                                                        class="text-blue-600 hover:text-blue-900 text-sm font-medium"
                                                     >
-                                                        <i
-                                                            class="fas fa-check mr-1"
-                                                        ></i
-                                                        >Вернуть
+                                                        Продлить
                                                     </button>
                                                     <button
-                                                        x-show="loan.status === 'active'"
-                                                        @click="renewLoan(loan)"
-                                                        class="btn-sm btn-warning"
+                                                        @click="returnBook(loan)"
+                                                        class="text-green-600 hover:text-green-900 text-sm font-medium"
                                                     >
-                                                        <i
-                                                            class="fas fa-redo mr-1"
-                                                        ></i
-                                                        >Продлить
+                                                        Вернуть
                                                     </button>
                                                 </div>
-                                            </td>
-                                        </tr>
-                                    </template>
-                                </tbody>
-                            </table>
-
-                            <div
-                                x-show="!filteredLoans.length && !loading"
-                                class="text-center text-gray-400 py-8"
-                            >
-                                Выдачи не найдены
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Statistics Section -->
-                <div x-show="currentView === 'statistics'" x-transition>
-                    <div class="mb-8">
-                        <h2 class="text-3xl font-bold text-white mb-2">
-                            Статистика
-                        </h2>
-                        <p class="text-gray-400">Отчеты и аналитика</p>
-                    </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <!-- Reader Statistics -->
-                        <div class="card">
-                            <h3 class="text-xl font-semibold text-white mb-4">
-                                <i class="fas fa-users mr-2 text-blue-400"></i
-                                >Статистика читателей
-                            </h3>
-                            <div class="space-y-4">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-gray-300"
-                                        >Всего читателей</span
-                                    >
-                                    <span
-                                        class="text-white font-semibold"
-                                        x-text="stats.totalReaders || '0'"
-                                    ></span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-gray-300">Активных</span>
-                                    <span
-                                        class="text-green-400 font-semibold"
-                                        x-text="stats.activeReaders || '0'"
-                                    ></span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-gray-300"
-                                        >С задолженностью</span
-                                    >
-                                    <span
-                                        class="text-red-400 font-semibold"
-                                        x-text="stats.debtorReaders || '0'"
-                                    ></span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Book Statistics -->
-                        <div class="card">
-                            <h3 class="text-xl font-semibold text-white mb-4">
-                                <i class="fas fa-book mr-2 text-green-400"></i
-                                >Статистика книг
-                            </h3>
-                            <div class="space-y-4">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-gray-300"
-                                        >Всего книг</span
-                                    >
-                                    <span
-                                        class="text-white font-semibold"
-                                        x-text="stats.totalBooks || '0'"
-                                    ></span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-gray-300">Доступно</span>
-                                    <span
-                                        class="text-green-400 font-semibold"
-                                        x-text="stats.availableBooks || '0'"
-                                    ></span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-gray-300">Выдано</span>
-                                    <span
-                                        class="text-blue-400 font-semibold"
-                                        x-text="stats.loanedBooks || '0'"
-                                    ></span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Monthly Report -->
-                        <div class="card lg:col-span-2">
-                            <h3 class="text-xl font-semibold text-white mb-4">
-                                <i
-                                    class="fas fa-chart-line mr-2 text-purple-400"
-                                ></i
-                                >Отчет за месяц
-                            </h3>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div class="bg-gray-700 p-4 rounded-lg">
-                                    <p class="text-gray-300 text-sm">
-                                        Выдач за месяц
-                                    </p>
-                                    <p
-                                        class="text-2xl font-bold text-white"
-                                        x-text="monthlyStats.loans || '0'"
-                                    ></p>
-                                </div>
-                                <div class="bg-gray-700 p-4 rounded-lg">
-                                    <p class="text-gray-300 text-sm">
-                                        Возвратов за месяц
-                                    </p>
-                                    <p
-                                        class="text-2xl font-bold text-white"
-                                        x-text="monthlyStats.returns || '0'"
-                                    ></p>
-                                </div>
-                                <div class="bg-gray-700 p-4 rounded-lg">
-                                    <p class="text-gray-300 text-sm">
-                                        Новых читателей
-                                    </p>
-                                    <p
-                                        class="text-2xl font-bold text-white"
-                                        x-text="monthlyStats.newReaders || '0'"
-                                    ></p>
-                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
                             </div>
                         </div>
                     </div>
                 </div>
             </main>
-        </div>
 
-        <!-- Add Book Modal -->
-        <div x-show="showModal === 'addBook'" class="modal" x-transition>
-            <div class="modal-content">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-xl font-semibold text-white">
-                        Добавить книгу
-                    </h3>
-                    <button
-                        @click="showModal = null"
-                        class="text-gray-400 hover:text-white"
-                    >
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-
-                <form @submit.prevent="addBook" class="space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label
-                                class="block text-sm font-medium text-gray-300 mb-2"
-                                >Название</label
-                            >
-                            <input
-                                type="text"
-                                x-model="bookForm.title"
-                                class="input-field"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="block text-sm font-medium text-gray-300 mb-2"
-                                >Автор</label
-                            >
-                            <input
-                                type="text"
-                                x-model="bookForm.author"
-                                class="input-field"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="block text-sm font-medium text-gray-300 mb-2"
-                                >Год издания</label
-                            >
-                            <input
-                                type="number"
-                                x-model="bookForm.publication_year"
-                                class="input-field"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="block text-sm font-medium text-gray-300 mb-2"
-                                >ISBN</label
-                            >
-                            <input
-                                type="text"
-                                x-model="bookForm.isbn"
-                                class="input-field"
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="block text-sm font-medium text-gray-300 mb-2"
-                                >Код книги</label
-                            >
-                            <input
-                                type="text"
-                                x-model="bookForm.book_code"
-                                class="input-field"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="block text-sm font-medium text-gray-300 mb-2"
-                                >Количество экземпляров</label
-                            >
-                            <input
-                                type="number"
-                                x-model="bookForm.total_copies"
-                                class="input-field"
-                                required
-                                min="1"
-                            />
-                        </div>
-                    </div>
-
-                    <div class="flex justify-end space-x-4 mt-6">
-                        <button
-                            type="button"
-                            @click="showModal = null"
-                            class="btn-secondary"
-                        >
-                            Отмена
-                        </button>
-                        <button type="submit" class="btn-primary">
-                            Добавить
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Add Reader Modal -->
-        <div x-show="showModal === 'addReader'" class="modal" x-transition>
-            <div class="modal-content">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-xl font-semibold text-white">
-                        Добавить читателя
-                    </h3>
-                    <button
-                        @click="showModal = null"
-                        class="text-gray-400 hover:text-white"
-                    >
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-
-                <form @submit.prevent="addReader" class="space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label
-                                class="block text-sm font-medium text-gray-300 mb-2"
-                                >ФИО</label
-                            >
-                            <input
-                                type="text"
-                                x-model="readerForm.full_name"
-                                class="input-field"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="block text-sm font-medium text-gray-300 mb-2"
-                                >Номер билета</label
-                            >
-                            <input
-                                type="text"
-                                x-model="readerForm.ticket_number"
-                                class="input-field"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="block text-sm font-medium text-gray-300 mb-2"
-                                >Дата рождения</label
-                            >
-                            <input
-                                type="date"
-                                x-model="readerForm.birth_date"
-                                class="input-field"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="block text-sm font-medium text-gray-300 mb-2"
-                                >Телефон</label
-                            >
-                            <input
-                                type="tel"
-                                x-model="readerForm.phone"
-                                class="input-field"
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="block text-sm font-medium text-gray-300 mb-2"
-                                >Email</label
-                            >
-                            <input
-                                type="email"
-                                x-model="readerForm.email"
-                                class="input-field"
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="block text-sm font-medium text-gray-300 mb-2"
-                                >Образование</label
-                            >
-                            <input
-                                type="text"
-                                x-model="readerForm.education"
-                                class="input-field"
-                            />
-                        </div>
-                    </div>
-
-                    <div class="flex justify-end space-x-4 mt-6">
-                        <button
-                            type="button"
-                            @click="showModal = null"
-                            class="btn-secondary"
-                        >
-                            Отмена
-                        </button>
-                        <button type="submit" class="btn-primary">
-                            Добавить
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Create Loan Modal -->
-        <div x-show="showModal === 'createLoan'" class="modal" x-transition>
-            <div class="modal-content">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-xl font-semibold text-white">
-                        Выдать книгу
-                    </h3>
-                    <button
-                        @click="showModal = null"
-                        class="text-gray-400 hover:text-white"
-                    >
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-
-                <form @submit.prevent="createLoan" class="space-y-4">
-                    <div>
-                        <label
-                            class="block text-sm font-medium text-gray-300 mb-2"
-                            >Книга</label
-                        >
-                        <input
-                          type="text"
-                          x-model="loanForm.bookSearch"
-                          @input="searchBooksForLoan"  <!-- Этот метод теперь есть в app.js -->
-                          class="input-field"
-                          placeholder="Поиск книги по названию или коду"
-                          required
-                        />
-                        <div
-                            x-show="bookSearchResults.length"
-                            class="mt-2 bg-gray-700 rounded-lg max-h-48 overflow-y-auto"
-                        >
-                            <template
-                                x-for="book in bookSearchResults"
-                                :key="book.id"
-                            >
-                                <div
-                                    @click="selectBookForLoan(book)"
-                                    class="p-3 hover:bg-gray-600 cursor-pointer border-b border-gray-600 last:border-b-0"
-                                >
-                                    <p
-                                        class="font-medium text-white"
-                                        x-text="book.title"
-                                    ></p>
-                                    <p
-                                        class="text-sm text-gray-400"
-                                        x-text="book.author + ' (' + book.book_code + ')'"
-                                    ></p>
-                                    <p
-                                        class="text-sm text-green-400"
-                                        x-text="'Доступно: ' + book.available_copies"
-                                    ></p>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label
-                            class="block text-sm font-medium text-gray-300 mb-2"
-                            >Читатель</label
-                        >
-                        <input
-                          type="text"
-                          x-model="loanForm.readerSearch"
-                          @input="searchReadersForLoan"  <!-- Этот метод теперь есть в app.js -->
-                          class="input-field"
-                          placeholder="Поиск читателя по ФИО или номеру билета"
-                          required
-                        />
-                        <div
-                            x-show="readerSearchResults.length"
-                            class="mt-2 bg-gray-700 rounded-lg max-h-48 overflow-y-auto"
-                        >
-                            <template
-                                x-for="reader in readerSearchResults"
-                                :key="reader.id"
-                            >
-                                <div
-                                    @click="selectReaderForLoan(reader)"
-                                    class="p-3 hover:bg-gray-600 cursor-pointer border-b border-gray-600 last:border-b-0"
-                                >
-                                    <p
-                                        class="font-medium text-white"
-                                        x-text="reader.full_name"
-                                    ></p>
-                                    <p
-                                        class="text-sm text-gray-400"
-                                        x-text="'Билет: ' + reader.ticket_number"
-                                    ></p>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-
+            <!-- Loading Screen -->
+            <div
+                x-show="isLoading"
+                class="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50"
+            >
+                <div class="text-center">
                     <div
-                        x-show="loanForm.selectedBook && loanForm.selectedReader"
-                        class="p-4 bg-gray-700 rounded-lg"
-                    >
-                        <h4 class="font-medium text-white mb-2">
-                            Подтверждение выдачи:
-                        </h4>
-                        <p
-                            class="text-gray-300"
-                            x-text="'Книга: ' + (loanForm.selectedBook?.title || '')"
-                        ></p>
-                        <p
-                            class="text-gray-300"
-                            x-text="'Читатель: ' + (loanForm.selectedReader?.full_name || '')"
-                        ></p>
-                    </div>
-
-                    <div class="flex justify-end space-x-4 mt-6">
-                        <button
-                            type="button"
-                            @click="showModal = null"
-                            class="btn-secondary"
-                        >
-                            Отмена
-                        </button>
-                        <button
-                            type="submit"
-                            :disabled="!loanForm.selectedBook || !loanForm.selectedReader"
-                            class="btn-primary"
-                            :class="{'opacity-50': !loanForm.selectedBook || !loanForm.selectedReader}"
-                        >
-                            Выдать
-                        </button>
-                    </div>
-                </form>
+                        class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"
+                    ></div>
+                    <p class="mt-2 text-sm text-gray-600">Загрузка...</p>
+                </div>
             </div>
         </div>
 
-        <!-- Loading Overlay -->
-        <div
-            x-show="loading"
-            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-            x-transition
-        >
-            <div class="bg-gray-800 rounded-lg p-6 text-center">
-                <i
-                    class="fas fa-spinner fa-spin text-3xl text-blue-400 mb-4"
-                ></i>
-                <p class="text-white">Загрузка...</p>
-            </div>
-        </div>
-
-        <!-- Success/Error Messages -->
-        <div
-            x-show="successMessage"
-            x-transition
-            class="fixed top-4 right-4 z-50"
-        >
-            <div class="bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg">
-                <i class="fas fa-check-circle mr-2"></i>
-                <span x-text="successMessage"></span>
-            </div>
-        </div>
-
-        <div x-show="error" x-transition class="fixed top-4 right-4 z-50">
-            <div class="bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg">
-                <i class="fas fa-exclamation-triangle mr-2"></i>
-                <span x-text="error"></span>
-            </div>
-        </div>
-
+        <!-- Scripts -->
         <script src="js/api.js"></script>
+        <script src="js/auth.js"></script>
+        <script src="js/components/login.js"></script>
+        <script src="js/components/dashboard.js"></script>
+        <script src="js/components/books.js"></script>
+        <script src="js/components/readers.js"></script>
+        <script src="js/components/loans.js"></script>
+        <script src="js/utils.js"></script>
         <script src="js/app.js"></script>
     </body>
 </html>
