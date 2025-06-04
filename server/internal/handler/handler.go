@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/hnnsly/library-console/internal/auth"
 	"github.com/hnnsly/library-console/internal/config"
 	httperr "github.com/hnnsly/library-console/internal/error"
@@ -53,15 +52,6 @@ func (h *Handler) Router() *fiber.App {
 	})
 
 	app.Use(logger.RequestLogger())
-
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://lab.somerka.ru", // Убедитесь что это правильный домен
-		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH",
-		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-CSRF-Token,Cookie",
-		AllowCredentials: true,         // ✅ Правильно
-		ExposeHeaders:    "Set-Cookie", // Добавить для cookies
-		MaxAge:           86400,
-	}))
 
 	// Health check route (no auth required)
 	app.Get("/health", h.healthCheck)

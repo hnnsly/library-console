@@ -81,14 +81,13 @@ func getSessionID(c *fiber.Ctx) string {
 	return ""
 }
 
-// clearSessionCookie очищает session cookie
 func clearSessionCookie(c *fiber.Ctx) {
 	c.Cookie(&fiber.Cookie{
 		Name:     "library-console_session_token",
 		Value:    "",
 		Path:     "/",
 		HTTPOnly: true,
-		Secure:   true, // В продакшене
+		Secure:   true, // Всегда true для HTTPS
 		SameSite: "Lax",
 		Expires:  time.Now().Add(-time.Hour),
 	})

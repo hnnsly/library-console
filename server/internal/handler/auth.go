@@ -334,8 +334,8 @@ func (h *AuthHandler) setSecureCookie(c *fiber.Ctx, sessionID string) {
 		Value:    sessionID,
 		Path:     "/",
 		HTTPOnly: true,
-		Secure:   true,
-		SameSite: "Strict",
+		Secure:   true, // Теперь всегда true, так как у вас HTTPS
+		SameSite: "Lax",
 		Expires:  time.Now().Add(h.sessionTTL),
 	})
 }
@@ -347,7 +347,7 @@ func (h *AuthHandler) clearSecureCookie(c *fiber.Ctx) {
 		Path:     "/",
 		HTTPOnly: true,
 		Secure:   true,
-		SameSite: "Strict",
+		SameSite: "Lax",
 		Expires:  time.Now().Add(-time.Hour),
 		MaxAge:   -1,
 	})
