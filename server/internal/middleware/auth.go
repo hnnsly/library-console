@@ -16,6 +16,15 @@ import (
 func AuthRequired(sessionManager *auth.SessionManager, ttl time.Duration) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// Получаем session ID из cookie или Authorization header
+		log.Debug().
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Str("user-agent", c.Get("User-Agent")).
+			Str("origin", c.Get("Origin")).
+			Str("referer", c.Get("Referer")).
+			Interface("all_cookies", c.Get("Cookie")).
+			Msg("AuthRequired: Request details")
+
 		sessionID := getSessionID(c)
 		if sessionID == "" {
 			return httperr.New(fiber.StatusUnauthorized, "Authentication required.")
