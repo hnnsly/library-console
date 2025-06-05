@@ -8,110 +8,78 @@ package postgres
 import (
 	"context"
 
-	"github.com/govalues/decimal"
+	"github.com/google/uuid"
 )
 
-const getAllHalls = `-- name: GetAllHalls :many
-SELECT id, name, specialization, total_seats, occupied_seats,
-       (total_seats - occupied_seats) as free_seats,
-       ROUND((occupied_seats * 100.0 / total_seats), 2) as occupancy_percent,
-       working_hours, status
-FROM halls
-WHERE status = 'open'
-ORDER BY name
+const createReadingHall = `-- name: CreateReadingHall :one
+INSERT INTO reading_halls (library_name, hall_name, specialization, total_seats)
+VALUES ($1, $2, $3, $4)
+RETURNING id, library_name, hall_name, specialization, total_seats, occupied_seats, created_at
 `
 
-type GetAllHallsRow struct {
-	ID               int64           `json:"id"`
-	Name             string          `json:"name"`
-	Specialization   string          `json:"specialization"`
-	TotalSeats       int             `json:"total_seats"`
-	OccupiedSeats    int             `json:"occupied_seats"`
-	FreeSeats        int32           `json:"free_seats"`
-	OccupancyPercent decimal.Decimal `json:"occupancy_percent"`
-	WorkingHours     string          `json:"working_hours"`
-	Status           string          `json:"status"`
+type CreateReadingHallParams struct {
+	LibraryName    string  `json:"library_name"`
+	HallName       string  `json:"hall_name"`
+	Specialization *string `json:"specialization"`
+	TotalSeats     int     `json:"total_seats"`
 }
 
-func (q *Queries) GetAllHalls(ctx context.Context) ([]*GetAllHallsRow, error) {
-	rows, err := q.db.Query(ctx, getAllHalls)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []*GetAllHallsRow{}
-	for rows.Next() {
-		var i GetAllHallsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Specialization,
-			&i.TotalSeats,
-			&i.OccupiedSeats,
-			&i.FreeSeats,
-			&i.OccupancyPercent,
-			&i.WorkingHours,
-			&i.Status,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getHallByID = `-- name: GetHallByID :one
-SELECT id, name, library_name, specialization, total_seats, occupied_seats, working_hours, equipment, status, visit_statistics, average_occupancy, created_at, updated_at FROM halls WHERE id = $1
-`
-
-func (q *Queries) GetHallByID(ctx context.Context, hallID int64) (*Hall, error) {
-	row := q.db.QueryRow(ctx, getHallByID, hallID)
-	var i Hall
+func (q *Queries) CreateReadingHall(ctx context.Context, arg CreateReadingHallParams) (*ReadingHall, error) {
+	row := q.db.QueryRow(ctx, createReadingHall,
+		arg.LibraryName,
+		arg.HallName,
+		arg.Specialization,
+		arg.TotalSeats,
+	)
+	var i ReadingHall
 	err := row.Scan(
 		&i.ID,
-		&i.Name,
 		&i.LibraryName,
+		&i.HallName,
 		&i.Specialization,
 		&i.TotalSeats,
 		&i.OccupiedSeats,
-		&i.WorkingHours,
-		&i.Equipment,
-		&i.Status,
-		&i.VisitStatistics,
-		&i.AverageOccupancy,
 		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return &i, err
 }
 
+const deleteReadingHall = `-- name: DeleteReadingHall :exec
+DELETE FROM reading_halls WHERE id = $1
+`
+
+func (q *Queries) DeleteReadingHall(ctx context.Context, hallID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteReadingHall, hallID)
+	return err
+}
+
 const getHallStatistics = `-- name: GetHallStatistics :many
 SELECT
-    h.name as hall_name,
-    h.specialization,
-    COUNT(DISTINCT b.id) as total_books,
-    SUM(b.total_copies) as total_copies,
-    COUNT(lh.id) as total_loans,
-    ROUND(h.average_occupancy, 2) as avg_occupancy_percent,
-    (h.total_seats - h.occupied_seats) as current_free_seats
-FROM halls h
-LEFT JOIN books b ON h.id = b.hall_id
-LEFT JOIN loan_history lh ON b.id = lh.book_id AND lh.loan_date >= CURRENT_DATE - INTERVAL '@days_back days'
-GROUP BY h.id, h.name, h.specialization, h.average_occupancy, h.total_seats, h.occupied_seats
-ORDER BY total_loans DESC
+    rh.id,
+    rh.library_name,
+    rh.hall_name,
+    rh.specialization,
+    rh.total_seats,
+    rh.occupied_seats,
+    (rh.total_seats - rh.occupied_seats) as free_seats,
+    COUNT(r.id) as registered_readers,
+    COUNT(CASE WHEN r.is_active THEN 1 END) as active_readers
+FROM reading_halls rh
+LEFT JOIN readers r ON rh.id = r.reading_hall_id
+GROUP BY rh.id, rh.library_name, rh.hall_name, rh.specialization, rh.total_seats, rh.occupied_seats
+ORDER BY rh.library_name, rh.hall_name
 `
 
 type GetHallStatisticsRow struct {
-	HallName            string          `json:"hall_name"`
-	Specialization      string          `json:"specialization"`
-	TotalBooks          int64           `json:"total_books"`
-	TotalCopies         int64           `json:"total_copies"`
-	TotalLoans          int64           `json:"total_loans"`
-	AvgOccupancyPercent decimal.Decimal `json:"avg_occupancy_percent"`
-	CurrentFreeSeats    int32           `json:"current_free_seats"`
+	ID                uuid.UUID `json:"id"`
+	LibraryName       string    `json:"library_name"`
+	HallName          string    `json:"hall_name"`
+	Specialization    *string   `json:"specialization"`
+	TotalSeats        int       `json:"total_seats"`
+	OccupiedSeats     *int      `json:"occupied_seats"`
+	FreeSeats         int32     `json:"free_seats"`
+	RegisteredReaders int64     `json:"registered_readers"`
+	ActiveReaders     int64     `json:"active_readers"`
 }
 
 func (q *Queries) GetHallStatistics(ctx context.Context) ([]*GetHallStatisticsRow, error) {
@@ -124,13 +92,66 @@ func (q *Queries) GetHallStatistics(ctx context.Context) ([]*GetHallStatisticsRo
 	for rows.Next() {
 		var i GetHallStatisticsRow
 		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryName,
 			&i.HallName,
 			&i.Specialization,
-			&i.TotalBooks,
-			&i.TotalCopies,
-			&i.TotalLoans,
-			&i.AvgOccupancyPercent,
-			&i.CurrentFreeSeats,
+			&i.TotalSeats,
+			&i.OccupiedSeats,
+			&i.FreeSeats,
+			&i.RegisteredReaders,
+			&i.ActiveReaders,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getReadingHallByID = `-- name: GetReadingHallByID :one
+SELECT id, library_name, hall_name, specialization, total_seats, occupied_seats, created_at FROM reading_halls WHERE id = $1
+`
+
+func (q *Queries) GetReadingHallByID(ctx context.Context, hallID uuid.UUID) (*ReadingHall, error) {
+	row := q.db.QueryRow(ctx, getReadingHallByID, hallID)
+	var i ReadingHall
+	err := row.Scan(
+		&i.ID,
+		&i.LibraryName,
+		&i.HallName,
+		&i.Specialization,
+		&i.TotalSeats,
+		&i.OccupiedSeats,
+		&i.CreatedAt,
+	)
+	return &i, err
+}
+
+const listReadingHalls = `-- name: ListReadingHalls :many
+SELECT id, library_name, hall_name, specialization, total_seats, occupied_seats, created_at FROM reading_halls ORDER BY library_name, hall_name
+`
+
+func (q *Queries) ListReadingHalls(ctx context.Context) ([]*ReadingHall, error) {
+	rows, err := q.db.Query(ctx, listReadingHalls)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*ReadingHall{}
+	for rows.Next() {
+		var i ReadingHall
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryName,
+			&i.HallName,
+			&i.Specialization,
+			&i.TotalSeats,
+			&i.OccupiedSeats,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -143,19 +164,60 @@ func (q *Queries) GetHallStatistics(ctx context.Context) ([]*GetHallStatisticsRo
 }
 
 const updateHallOccupancy = `-- name: UpdateHallOccupancy :exec
-UPDATE halls
-SET occupied_seats = (
-    SELECT COUNT(DISTINCT reader_id)
-    FROM loan_history lh
-    JOIN readers r ON lh.reader_id = r.id
-    WHERE r.hall_id = $1 AND lh.status = 'active'
-),
-average_occupancy = (occupied_seats * 100.0 / total_seats),
-updated_at = NOW()
-WHERE id = $1
+UPDATE reading_halls
+SET occupied_seats = $1
+WHERE id = $2
 `
 
-func (q *Queries) UpdateHallOccupancy(ctx context.Context, hallID int) error {
-	_, err := q.db.Exec(ctx, updateHallOccupancy, hallID)
+type UpdateHallOccupancyParams struct {
+	OccupiedSeats *int      `json:"occupied_seats"`
+	HallID        uuid.UUID `json:"hall_id"`
+}
+
+func (q *Queries) UpdateHallOccupancy(ctx context.Context, arg UpdateHallOccupancyParams) error {
+	_, err := q.db.Exec(ctx, updateHallOccupancy, arg.OccupiedSeats, arg.HallID)
 	return err
+}
+
+const updateReadingHall = `-- name: UpdateReadingHall :one
+UPDATE reading_halls
+SET
+    library_name = COALESCE($1, library_name),
+    hall_name = COALESCE($2, hall_name),
+    specialization = COALESCE($3, specialization),
+    total_seats = COALESCE($4, total_seats),
+    occupied_seats = COALESCE($5, occupied_seats)
+WHERE id = $6
+RETURNING id, library_name, hall_name, specialization, total_seats, occupied_seats, created_at
+`
+
+type UpdateReadingHallParams struct {
+	LibraryName    string    `json:"library_name"`
+	HallName       string    `json:"hall_name"`
+	Specialization *string   `json:"specialization"`
+	TotalSeats     int       `json:"total_seats"`
+	OccupiedSeats  *int      `json:"occupied_seats"`
+	HallID         uuid.UUID `json:"hall_id"`
+}
+
+func (q *Queries) UpdateReadingHall(ctx context.Context, arg UpdateReadingHallParams) (*ReadingHall, error) {
+	row := q.db.QueryRow(ctx, updateReadingHall,
+		arg.LibraryName,
+		arg.HallName,
+		arg.Specialization,
+		arg.TotalSeats,
+		arg.OccupiedSeats,
+		arg.HallID,
+	)
+	var i ReadingHall
+	err := row.Scan(
+		&i.ID,
+		&i.LibraryName,
+		&i.HallName,
+		&i.Specialization,
+		&i.TotalSeats,
+		&i.OccupiedSeats,
+		&i.CreatedAt,
+	)
+	return &i, err
 }

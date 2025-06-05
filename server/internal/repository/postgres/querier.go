@@ -6,99 +6,124 @@ package postgres
 
 import (
 	"context"
-	"time"
+
+	"github.com/google/uuid"
 )
 
 type Querier interface {
-	ActivateUser(ctx context.Context, id int64) error
-	AdvancedBookSearch(ctx context.Context, arg AdvancedBookSearchParams) ([]*AdvancedBookSearchRow, error)
-	AdvancedSearchBooks(ctx context.Context, arg AdvancedSearchBooksParams) ([]*AdvancedSearchBooksRow, error)
-	CalculateOverdueFine(ctx context.Context, arg CalculateOverdueFineParams) (*CalculateOverdueFineRow, error)
-	CancelReservation(ctx context.Context, reservationID int64) error
-	CheckLoanEligibility(ctx context.Context, arg CheckLoanEligibilityParams) (*CheckLoanEligibilityRow, error)
+	AddBookAuthor(ctx context.Context, arg AddBookAuthorParams) error
+	CountActiveIssuesByReader(ctx context.Context, readerID uuid.UUID) (int64, error)
+	CountAuthors(ctx context.Context) (int64, error)
+	CountAvailableBookCopies(ctx context.Context, bookID uuid.UUID) (int64, error)
+	CountBookCopiesByBook(ctx context.Context, bookID uuid.UUID) (int64, error)
+	CountBooks(ctx context.Context) (int64, error)
+	CountOverdueIssues(ctx context.Context) (int64, error)
+	CountReaders(ctx context.Context) (int64, error)
+	CountReadersByHall(ctx context.Context, hallID *uuid.UUID) (int64, error)
+	CountSystemLogsByAction(ctx context.Context, arg CountSystemLogsByActionParams) (int64, error)
+	CountUsers(ctx context.Context) (int64, error)
+	CountUsersByRole(ctx context.Context, role UserRole) (int64, error)
+	CreateAuthor(ctx context.Context, arg CreateAuthorParams) (*Author, error)
 	CreateBook(ctx context.Context, arg CreateBookParams) (*Book, error)
-	CreateCategory(ctx context.Context, arg CreateCategoryParams) (*BookCategory, error)
-	CreateDailyStatistics(ctx context.Context) error
+	CreateBookCopy(ctx context.Context, arg CreateBookCopyParams) (*BookCopy, error)
+	CreateBookIssue(ctx context.Context, arg CreateBookIssueParams) (*BookIssue, error)
+	CreateBookRating(ctx context.Context, arg CreateBookRatingParams) (*BookRating, error)
 	CreateFine(ctx context.Context, arg CreateFineParams) (*Fine, error)
-	CreateLibrarian(ctx context.Context, arg CreateLibrarianParams) (*Librarian, error)
-	CreateLoan(ctx context.Context, arg CreateLoanParams) (*LoanHistory, error)
-	CreateOperationLog(ctx context.Context, arg CreateOperationLogParams) error
 	CreateReader(ctx context.Context, arg CreateReaderParams) (*Reader, error)
-	CreateRenewal(ctx context.Context, arg CreateRenewalParams) error
-	CreateRenewalRecord(ctx context.Context, arg CreateRenewalRecordParams) (*Renewal, error)
-	CreateReservation(ctx context.Context, arg CreateReservationParams) (*Reservation, error)
-	CreateUser(ctx context.Context, arg CreateUserParams) (*CreateUserRow, error)
-	DeactivateLibrarian(ctx context.Context, librarianID int64) error
-	DeactivateUser(ctx context.Context, id int64) error
-	DeleteUser(ctx context.Context, id int64) error
-	FulfillReservation(ctx context.Context, reservationID int64) error
-	GetActiveLoansByBook(ctx context.Context, bookID int) ([]*GetActiveLoansByBookRow, error)
-	GetActiveReaders(ctx context.Context, resultLimit int32) ([]*GetActiveReadersRow, error)
-	GetAllCategories(ctx context.Context) ([]*BookCategory, error)
-	GetAllHalls(ctx context.Context) ([]*GetAllHallsRow, error)
-	GetAllLibrarians(ctx context.Context) ([]*Librarian, error)
-	GetAllReaders(ctx context.Context, arg GetAllReadersParams) ([]*GetAllReadersRow, error)
-	GetAllUsers(ctx context.Context, arg GetAllUsersParams) ([]*GetAllUsersRow, error)
-	GetAvailableBooks(ctx context.Context, resultLimit int32) ([]*GetAvailableBooksRow, error)
-	GetBookByCode(ctx context.Context, bookCode string) (*GetBookByCodeRow, error)
-	GetBookByID(ctx context.Context, bookID int64) (*GetBookByIDRow, error)
-	GetBookQueue(ctx context.Context, bookID int) ([]*GetBookQueueRow, error)
-	GetBooksByAuthorInHall(ctx context.Context, arg GetBooksByAuthorInHallParams) (*GetBooksByAuthorInHallRow, error)
-	GetBooksDueToday(ctx context.Context) ([]*GetBooksDueTodayRow, error)
-	GetBooksWithSingleCopy(ctx context.Context) ([]*GetBooksWithSingleCopyRow, error)
-	GetCategoryStatistics(ctx context.Context) ([]*GetCategoryStatisticsRow, error)
-	GetDebtorReaders(ctx context.Context) ([]*GetDebtorReadersRow, error)
-	GetExpiredReservations(ctx context.Context) ([]*GetExpiredReservationsRow, error)
-	GetHallByID(ctx context.Context, hallID int64) (*Hall, error)
+	CreateReadingHall(ctx context.Context, arg CreateReadingHallParams) (*ReadingHall, error)
+	CreateSystemLog(ctx context.Context, arg CreateSystemLogParams) error
+	CreateUser(ctx context.Context, arg CreateUserParams) (*User, error)
+	DeactivateReader(ctx context.Context, readerID uuid.UUID) error
+	DeactivateUser(ctx context.Context, userID uuid.UUID) error
+	DeleteAuthor(ctx context.Context, authorID uuid.UUID) error
+	DeleteBook(ctx context.Context, bookID uuid.UUID) error
+	DeleteBookCopy(ctx context.Context, copyID uuid.UUID) error
+	DeleteBookRating(ctx context.Context, ratingID uuid.UUID) error
+	DeleteFine(ctx context.Context, fineID uuid.UUID) error
+	DeleteReadingHall(ctx context.Context, hallID uuid.UUID) error
+	ExtendBookIssue(ctx context.Context, arg ExtendBookIssueParams) error
+	GetActiveIssuesByReader(ctx context.Context, readerID uuid.UUID) ([]*GetActiveIssuesByReaderRow, error)
+	GetActiveReaderStatistics(ctx context.Context) ([]*GetActiveReaderStatisticsRow, error)
+	GetAllActiveIssues(ctx context.Context) ([]*GetAllActiveIssuesRow, error)
+	GetAllUnpaidFines(ctx context.Context) ([]*GetAllUnpaidFinesRow, error)
+	GetAuthorBooks(ctx context.Context, authorID uuid.UUID) ([]*Book, error)
+	GetAuthorByID(ctx context.Context, authorID uuid.UUID) (*Author, error)
+	GetAuthorsByBook(ctx context.Context, bookID uuid.UUID) ([]*Author, error)
+	GetBookAuthors(ctx context.Context, bookID uuid.UUID) ([]*Author, error)
+	GetBookAverageRating(ctx context.Context, bookID uuid.UUID) (*GetBookAverageRatingRow, error)
+	GetBookByID(ctx context.Context, bookID uuid.UUID) (*Book, error)
+	GetBookByISBN(ctx context.Context, isbn *string) (*Book, error)
+	GetBookCopiesByStatus(ctx context.Context, status NullBookStatus) ([]*GetBookCopiesByStatusRow, error)
+	GetBookCopyByCode(ctx context.Context, copyCode string) (*GetBookCopyByCodeRow, error)
+	GetBookCopyByID(ctx context.Context, copyID uuid.UUID) (*GetBookCopyByIDRow, error)
+	GetBookIssueByID(ctx context.Context, issueID uuid.UUID) (*GetBookIssueByIDRow, error)
+	GetBookIssueHistory(ctx context.Context, copyID uuid.UUID) ([]*GetBookIssueHistoryRow, error)
+	GetBookRatingByID(ctx context.Context, ratingID uuid.UUID) (*GetBookRatingByIDRow, error)
+	GetBookRatings(ctx context.Context, bookID uuid.UUID) ([]*GetBookRatingsRow, error)
+	GetBookWithDetails(ctx context.Context, bookID uuid.UUID) (*GetBookWithDetailsRow, error)
+	GetBooksByAuthor(ctx context.Context, authorID uuid.UUID) ([]*Book, error)
+	GetBooksByAuthorInHall(ctx context.Context, arg GetBooksByAuthorInHallParams) ([]*GetBooksByAuthorInHallRow, error)
+	GetBooksWithAuthors(ctx context.Context, arg GetBooksWithAuthorsParams) ([]*GetBooksWithAuthorsRow, error)
+	GetFineByID(ctx context.Context, fineID uuid.UUID) (*GetFineByIDRow, error)
+	GetFineStatistics(ctx context.Context, arg GetFineStatisticsParams) (*GetFineStatisticsRow, error)
+	GetFinesByReader(ctx context.Context, readerID uuid.UUID) ([]*GetFinesByReaderRow, error)
 	GetHallStatistics(ctx context.Context) ([]*GetHallStatisticsRow, error)
-	GetInventoryReport(ctx context.Context) ([]*GetInventoryReportRow, error)
-	GetLibrarianByEmployeeID(ctx context.Context, employeeID string) (*Librarian, error)
-	GetLibrarianByID(ctx context.Context, librarianID int64) (*Librarian, error)
-	GetLoanByID(ctx context.Context, loanID int64) (*GetLoanByIDRow, error)
-	GetLoanStatusStatistics(ctx context.Context, loanDate time.Time) ([]*GetLoanStatusStatisticsRow, error)
-	GetMonthlyReport(ctx context.Context) ([]*GetMonthlyReportRow, error)
-	GetMostRenewedBooks(ctx context.Context, resultLimit int32) ([]*GetMostRenewedBooksRow, error)
-	GetOperationLogs(ctx context.Context, arg GetOperationLogsParams) ([]*GetOperationLogsRow, error)
-	GetOverdueBooks(ctx context.Context, resultLimit int32) ([]*GetOverdueBooksRow, error)
-	GetPopularBooks(ctx context.Context, resultLimit int32) ([]*GetPopularBooksRow, error)
-	GetReaderByID(ctx context.Context, readerID int64) (*GetReaderByIDRow, error)
-	GetReaderByTicket(ctx context.Context, ticketNumber string) (*GetReaderByTicketRow, error)
-	GetReaderCurrentLoans(ctx context.Context, readerID int) ([]*GetReaderCurrentLoansRow, error)
-	GetReaderFavoriteCategories(ctx context.Context, readerID int) ([]*GetReaderFavoriteCategoriesRow, error)
-	GetReaderFines(ctx context.Context, readerID int) ([]*GetReaderFinesRow, error)
-	GetReaderLoanHistory(ctx context.Context, arg GetReaderLoanHistoryParams) ([]*GetReaderLoanHistoryRow, error)
-	GetReaderReservations(ctx context.Context, readerID int) ([]*GetReaderReservationsRow, error)
-	GetReaderStatistics(ctx context.Context, readerID int64) (*GetReaderStatisticsRow, error)
-	GetReadersCount(ctx context.Context) (int64, error)
-	GetRecentOperations(ctx context.Context, resultLimit int32) ([]*GetRecentOperationsRow, error)
-	GetRenewalsByDate(ctx context.Context, arg GetRenewalsByDateParams) ([]*GetRenewalsByDateRow, error)
-	GetRenewalsForLoan(ctx context.Context, loanHistoryID int) ([]*GetRenewalsForLoanRow, error)
-	GetTopRatedBooks(ctx context.Context, resultLimit int32) ([]*GetTopRatedBooksRow, error)
-	GetUnpaidFines(ctx context.Context) ([]*GetUnpaidFinesRow, error)
-	GetUserByID(ctx context.Context, id int64) (*GetUserByIDRow, error)
-	GetUserByUsername(ctx context.Context, username string) (*GetUserByUsernameRow, error)
-	GetUsersByRole(ctx context.Context, role string) ([]*GetUsersByRoleRow, error)
-	GetYearlyReportByCategory(ctx context.Context) ([]*GetYearlyReportByCategoryRow, error)
-	GlobalSearch(ctx context.Context, searchTerm string) ([]*GlobalSearchRow, error)
-	MarkLoanAsLost(ctx context.Context, id int64) error
-	PayFine(ctx context.Context, fineID int64) error
-	RenewLoan(ctx context.Context, loanID int64) error
+	GetHallUtilizationReport(ctx context.Context) ([]*GetHallUtilizationReportRow, error)
+	GetIssueDueSoon(ctx context.Context) ([]*GetIssueDueSoonRow, error)
+	GetIssueHistory(ctx context.Context, arg GetIssueHistoryParams) ([]*GetIssueHistoryRow, error)
+	GetLibraryStatistics(ctx context.Context) (*GetLibraryStatisticsRow, error)
+	GetMonthlyStatistics(ctx context.Context, arg GetMonthlyStatisticsParams) ([]*GetMonthlyStatisticsRow, error)
+	GetOverdueIssues(ctx context.Context) ([]*GetOverdueIssuesRow, error)
+	GetPopularBooks(ctx context.Context, limitVal int32) ([]*GetPopularBooksRow, error)
+	GetReaderBookRating(ctx context.Context, arg GetReaderBookRatingParams) (*BookRating, error)
+	GetReaderByID(ctx context.Context, readerID uuid.UUID) (*GetReaderByIDRow, error)
+	GetReaderByTicketNumber(ctx context.Context, ticketNumber string) (*GetReaderByTicketNumberRow, error)
+	GetReaderByUserID(ctx context.Context, userID *uuid.UUID) (*GetReaderByUserIDRow, error)
+	GetReaderRatings(ctx context.Context, readerID uuid.UUID) ([]*GetReaderRatingsRow, error)
+	GetReadersWithSingleCopyBooks(ctx context.Context) ([]*GetReadersWithSingleCopyBooksRow, error)
+	GetReadingHallByID(ctx context.Context, hallID uuid.UUID) (*ReadingHall, error)
+	GetRecentSystemLogs(ctx context.Context, arg GetRecentSystemLogsParams) ([]*GetRecentSystemLogsRow, error)
+	GetSystemLogByID(ctx context.Context, logID uuid.UUID) (*GetSystemLogByIDRow, error)
+	GetSystemLogsByAction(ctx context.Context, arg GetSystemLogsByActionParams) ([]*GetSystemLogsByActionRow, error)
+	GetSystemLogsByEntity(ctx context.Context, arg GetSystemLogsByEntityParams) ([]*GetSystemLogsByEntityRow, error)
+	GetSystemLogsByUser(ctx context.Context, arg GetSystemLogsByUserParams) ([]*GetSystemLogsByUserRow, error)
+	GetSystemLogsInDateRange(ctx context.Context, arg GetSystemLogsInDateRangeParams) ([]*GetSystemLogsInDateRangeRow, error)
+	GetSystemLogsStatistics(ctx context.Context, arg GetSystemLogsStatisticsParams) (*GetSystemLogsStatisticsRow, error)
+	GetTopRatedBooks(ctx context.Context, arg GetTopRatedBooksParams) ([]*GetTopRatedBooksRow, error)
+	GetTopRatedBooksWithRatings(ctx context.Context, arg GetTopRatedBooksWithRatingsParams) ([]*GetTopRatedBooksWithRatingsRow, error)
+	GetTotalDebtByReader(ctx context.Context, readerID uuid.UUID) (interface{}, error)
+	GetUnpaidFinesByReader(ctx context.Context, readerID uuid.UUID) ([]*GetUnpaidFinesByReaderRow, error)
+	GetUserByEmail(ctx context.Context, email string) (*User, error)
+	GetUserByID(ctx context.Context, userID uuid.UUID) (*User, error)
+	GetUserByUsername(ctx context.Context, username string) (*User, error)
+	ListAllReaders(ctx context.Context, arg ListAllReadersParams) ([]*ListAllReadersRow, error)
+	ListAuthors(ctx context.Context, arg ListAuthorsParams) ([]*Author, error)
+	ListAvailableBookCopies(ctx context.Context) ([]*ListAvailableBookCopiesRow, error)
+	ListBookCopiesByBook(ctx context.Context, bookID uuid.UUID) ([]*ListBookCopiesByBookRow, error)
+	ListBooks(ctx context.Context, arg ListBooksParams) ([]*Book, error)
+	ListReadersByHall(ctx context.Context, hallID *uuid.UUID) ([]*ListReadersByHallRow, error)
+	ListReadingHalls(ctx context.Context) ([]*ReadingHall, error)
+	ListUsers(ctx context.Context, arg ListUsersParams) ([]*User, error)
+	ListUsersByRole(ctx context.Context, role UserRole) ([]*User, error)
+	PayFine(ctx context.Context, arg PayFineParams) error
+	RemoveAllBookAuthors(ctx context.Context, bookID uuid.UUID) error
+	RemoveBookAuthor(ctx context.Context, arg RemoveBookAuthorParams) error
 	ReturnBook(ctx context.Context, arg ReturnBookParams) error
-	SearchBooks(ctx context.Context, arg SearchBooksParams) ([]*SearchBooksRow, error)
-	SearchReadersByName(ctx context.Context, arg SearchReadersByNameParams) ([]*SearchReadersByNameRow, error)
+	SearchAuthorsByName(ctx context.Context, searchQuery string) ([]*Author, error)
+	SearchBooksByTitle(ctx context.Context, searchQuery string) ([]*Book, error)
+	SearchReadersByName(ctx context.Context, searchQuery *string) ([]*SearchReadersByNameRow, error)
+	UpdateAuthor(ctx context.Context, arg UpdateAuthorParams) (*Author, error)
+	UpdateBook(ctx context.Context, arg UpdateBookParams) (*Book, error)
 	UpdateBookAvailability(ctx context.Context, arg UpdateBookAvailabilityParams) error
-	UpdateBookCopies(ctx context.Context, arg UpdateBookCopiesParams) error
-	UpdateHallOccupancy(ctx context.Context, hallID int) error
-	UpdateLastLogin(ctx context.Context, id int64) error
-	UpdateLibrarian(ctx context.Context, arg UpdateLibrarianParams) (*Librarian, error)
-	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) error
+	UpdateBookCopy(ctx context.Context, arg UpdateBookCopyParams) (*BookCopy, error)
+	UpdateBookIssue(ctx context.Context, arg UpdateBookIssueParams) (*BookIssue, error)
+	UpdateBookRating(ctx context.Context, arg UpdateBookRatingParams) (*BookRating, error)
+	UpdateFine(ctx context.Context, arg UpdateFineParams) (*Fine, error)
+	UpdateHallOccupancy(ctx context.Context, arg UpdateHallOccupancyParams) error
 	UpdateReader(ctx context.Context, arg UpdateReaderParams) (*Reader, error)
-	UpdateReaderDebt(ctx context.Context, readerID int64) error
-	UpdateReaderStatus(ctx context.Context, arg UpdateReaderStatusParams) error
-	UpdateUser(ctx context.Context, arg UpdateUserParams) (*UpdateUserRow, error)
-	UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) error
-	WaiveFine(ctx context.Context, fineID int64) error
-	WriteOffBook(ctx context.Context, bookID int64) error
+	UpdateReadingHall(ctx context.Context, arg UpdateReadingHallParams) (*ReadingHall, error)
+	UpdateUser(ctx context.Context, arg UpdateUserParams) (*User, error)
+	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 }
 
 var _ Querier = (*Queries)(nil)

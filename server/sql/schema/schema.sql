@@ -1,295 +1,249 @@
-CREATE TABLE halls (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL, -- Название зала
-    library_name VARCHAR(150) NOT NULL, -- Название библиотеки
-    specialization VARCHAR(100) NOT NULL, -- Специализация зала
-    total_seats INTEGER NOT NULL DEFAULT 0, -- Общее количество мест
-    occupied_seats INTEGER NOT NULL DEFAULT 0, -- Занятые места
-    working_hours VARCHAR(50) NOT NULL DEFAULT '09:00-18:00', -- Время работы
-    equipment TEXT, -- Оборудование
-    status VARCHAR(20) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed', 'maintenance')), -- Статус зала
-    visit_statistics INTEGER NOT NULL DEFAULT 0, -- Статистика посещений
-    average_occupancy DECIMAL(5, 2) NOT NULL DEFAULT 0.00, -- Средняя загруженность %
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+DROP SCHEMA IF EXISTS library CASCADE;
+
+CREATE SCHEMA library;
+
+SET
+    search_path TO library;
+
+-- Добавление модуля для UUID
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Создание типов данных
+CREATE TYPE user_role AS ENUM ('administrator', 'librarian', 'reader');
+
+CREATE TYPE book_status AS ENUM (
+    'available',
+    'issued',
+    'reserved',
+    'lost',
+    'damaged'
 );
 
--- Создание триггера для обновления updated_at
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_halls_updated_at BEFORE UPDATE ON halls
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- 2. Таблица читателей
-CREATE TABLE readers (
-    id SERIAL PRIMARY KEY,
-    full_name VARCHAR(150) NOT NULL, -- ФИО читателя
-    ticket_number VARCHAR(20) UNIQUE NOT NULL, -- Номер читательского билета
-    birth_date DATE NOT NULL, -- Дата рождения
-    phone VARCHAR(20), -- Телефон
-    email VARCHAR(100), -- Email
-    education VARCHAR(100), -- Образование
-    hall_id INTEGER NOT NULL, -- Закрепленный зал
-    max_books_allowed INTEGER NOT NULL DEFAULT 5, -- Максимальное количество книг
-    max_renewals_allowed INTEGER NOT NULL DEFAULT 2, -- Максимальное количество продлений
-    total_debt DECIMAL(10, 2) NOT NULL DEFAULT 0.00, -- Общая задолженность
-    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'blocked', 'debtor', 'inactive')), -- Статус читателя
-    reader_rating INTEGER NOT NULL DEFAULT 0, -- Рейтинг читателя
-    registration_date DATE NOT NULL DEFAULT CURRENT_DATE, -- Дата регистрации
-    last_activity_date DATE, -- Дата последней активности
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_readers_hall FOREIGN KEY (hall_id) REFERENCES halls (id) ON DELETE RESTRICT ON UPDATE CASCADE
+CREATE TYPE action_type AS ENUM (
+    'login',
+    'logout',
+    'book_issue',
+    'book_return',
+    'book_extend',
+    'book_add',
+    'book_remove',
+    'reader_register',
+    'reader_update',
+    'fine_payment'
 );
 
-CREATE INDEX idx_readers_ticket_number ON readers (ticket_number);
-CREATE INDEX idx_readers_status ON readers (status);
-CREATE INDEX idx_readers_hall_id ON readers (hall_id);
-
-CREATE TRIGGER update_readers_updated_at BEFORE UPDATE ON readers
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- 3. Таблица категорий книг
-CREATE TABLE book_categories (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE, -- Название категории
-    description TEXT, -- Описание категории
-    default_loan_days INTEGER NOT NULL DEFAULT 30, -- Стандартный срок выдачи для категории
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
--- 4. Таблица книг
-CREATE TABLE books (
-    id SERIAL PRIMARY KEY,
-    title VARCHAR(200) NOT NULL, -- Название книги
-    author VARCHAR(150) NOT NULL, -- Автор
-    publication_year INTEGER NOT NULL, -- Год издания
-    isbn VARCHAR(20), -- ISBN
-    book_code VARCHAR(50) UNIQUE NOT NULL, -- Шифр книги
-    category_id INTEGER, -- Категория книги
-    hall_id INTEGER NOT NULL, -- Зал, где находится книга
-    total_copies INTEGER NOT NULL DEFAULT 1, -- Общее количество экземпляров
-    available_copies INTEGER NOT NULL DEFAULT 1, -- Доступные экземпляры
-    condition_status VARCHAR(20) NOT NULL DEFAULT 'good' CHECK (condition_status IN ('excellent', 'good', 'fair', 'poor')), -- Состояние книги
-    location_info VARCHAR(100), -- Местоположение (стеллаж, полка)
-    max_loan_days INTEGER NOT NULL DEFAULT 30, -- Максимальный срок выдачи
-    max_renewals INTEGER NOT NULL DEFAULT 2, -- Максимальное количество продлений
-    popularity_score INTEGER NOT NULL DEFAULT 0, -- Счетчик популярности
-    rating DECIMAL(3, 2) NOT NULL DEFAULT 0.00, -- Рейтинг книги (0-10)
-    acquisition_date DATE NOT NULL DEFAULT CURRENT_DATE, -- Дата поступления
-    status VARCHAR(20) NOT NULL DEFAULT 'available' CHECK (status IN ('available', 'loaned', 'reserved', 'maintenance', 'lost')), -- Статус книги
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_books_category FOREIGN KEY (category_id) REFERENCES book_categories (id) ON DELETE SET NULL ON UPDATE CASCADE,
-    CONSTRAINT fk_books_hall FOREIGN KEY (hall_id) REFERENCES halls (id) ON DELETE RESTRICT ON UPDATE CASCADE
-);
-
-CREATE INDEX idx_books_book_code ON books (book_code);
-CREATE INDEX idx_books_author ON books (author);
-CREATE INDEX idx_books_title ON books (title);
-CREATE INDEX idx_books_category_id ON books (category_id);
-CREATE INDEX idx_books_hall_id ON books (hall_id);
-CREATE INDEX idx_books_status ON books (status);
-
-CREATE TRIGGER update_books_updated_at BEFORE UPDATE ON books
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- 5. Таблица сотрудников (библиотекарей)
-CREATE TABLE librarians (
-    id SERIAL PRIMARY KEY,
-    full_name VARCHAR(150) NOT NULL, -- ФИО сотрудника
-    employee_id VARCHAR(20) UNIQUE NOT NULL, -- Табельный номер
-    position VARCHAR(100) NOT NULL DEFAULT 'Библиотекарь', -- Должность
-    phone VARCHAR(20), -- Телефон
-    email VARCHAR(100), -- Email
-    hire_date DATE NOT NULL DEFAULT CURRENT_DATE, -- Дата приема на работу
-    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')), -- Статус сотрудника
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_librarians_employee_id ON librarians (employee_id);
-CREATE INDEX idx_librarians_status ON librarians (status);
-
-CREATE TRIGGER update_librarians_updated_at BEFORE UPDATE ON librarians
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- 6. Основная таблица истории выдачи книг
-CREATE TABLE loan_history (
-    id SERIAL PRIMARY KEY,
-    book_id INTEGER NOT NULL, -- ID книги
-    reader_id INTEGER NOT NULL, -- ID читателя
-    librarian_id INTEGER NOT NULL, -- ID библиотекаря, выдавшего книгу
-    loan_date DATE NOT NULL DEFAULT CURRENT_DATE, -- Дата выдачи
-    due_date DATE NOT NULL, -- Планируемая дата возврата
-    return_date DATE, -- Фактическая дата возврата
-    renewals_count INTEGER NOT NULL DEFAULT 0, -- Количество продлений
-    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'returned', 'overdue', 'lost', 'damaged')), -- Статус выдачи
-    fine_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00, -- Сумма штрафа
-    fine_paid BOOLEAN NOT NULL DEFAULT FALSE, -- Штраф оплачен
-    comments TEXT, -- Комментарии
-    return_librarian_id INTEGER, -- ID библиотекаря, принявшего книгу
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_loan_history_book FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_loan_history_reader FOREIGN KEY (reader_id) REFERENCES readers (id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_loan_history_librarian FOREIGN KEY (librarian_id) REFERENCES librarians (id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_loan_history_return_librarian FOREIGN KEY (return_librarian_id) REFERENCES librarians (id) ON DELETE RESTRICT ON UPDATE CASCADE
-);
-
-CREATE INDEX idx_loan_history_book_id ON loan_history (book_id);
-CREATE INDEX idx_loan_history_reader_id ON loan_history (reader_id);
-CREATE INDEX idx_loan_history_loan_date ON loan_history (loan_date);
-CREATE INDEX idx_loan_history_due_date ON loan_history (due_date);
-CREATE INDEX idx_loan_history_status ON loan_history (status);
-CREATE INDEX idx_loan_history_active_loans ON loan_history (status, due_date); -- Составной индекс для активных выдач
-
-CREATE TRIGGER update_loan_history_updated_at BEFORE UPDATE ON loan_history
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- 7. Таблица продлений
-CREATE TABLE renewals (
-    id SERIAL PRIMARY KEY,
-    loan_history_id INTEGER NOT NULL, -- ID записи в истории выдач
-    renewal_date DATE NOT NULL DEFAULT CURRENT_DATE, -- Дата продления
-    old_due_date DATE NOT NULL, -- Старая дата возврата
-    new_due_date DATE NOT NULL, -- Новая дата возврата
-    librarian_id INTEGER NOT NULL, -- ID библиотекаря, сделавшего продление
-    reason VARCHAR(200), -- Причина продления
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_renewals_loan_history FOREIGN KEY (loan_history_id) REFERENCES loan_history (id) ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT fk_renewals_librarian FOREIGN KEY (librarian_id) REFERENCES librarians (id) ON DELETE RESTRICT ON UPDATE CASCADE
-);
-
-CREATE INDEX idx_renewals_loan_history_id ON renewals (loan_history_id);
-CREATE INDEX idx_renewals_renewal_date ON renewals (renewal_date);
-
--- 8. Таблица бронирования книг
-CREATE TABLE reservations (
-    id SERIAL PRIMARY KEY,
-    book_id INTEGER NOT NULL, -- ID книги
-    reader_id INTEGER NOT NULL, -- ID читателя
-    reservation_date DATE NOT NULL DEFAULT CURRENT_DATE, -- Дата бронирования
-    expiration_date DATE NOT NULL, -- Дата истечения брони
-    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'fulfilled', 'cancelled', 'expired')), -- Статус брони
-    priority_order INTEGER NOT NULL DEFAULT 1, -- Порядок в очереди
-    notification_sent BOOLEAN NOT NULL DEFAULT FALSE, -- Уведомление отправлено
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_reservations_book FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT fk_reservations_reader FOREIGN KEY (reader_id) REFERENCES readers (id) ON DELETE CASCADE ON UPDATE CASCADE
-);
-
-CREATE INDEX idx_reservations_book_id ON reservations (book_id);
-CREATE INDEX idx_reservations_reader_id ON reservations (reader_id);
-CREATE INDEX idx_reservations_status ON reservations (status);
-CREATE INDEX idx_reservations_priority ON reservations (book_id, priority_order);
-
-CREATE TRIGGER update_reservations_updated_at BEFORE UPDATE ON reservations
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- 9. Таблица штрафов
-CREATE TABLE fines (
-    id SERIAL PRIMARY KEY,
-    loan_history_id INTEGER NOT NULL, -- ID записи в истории выдач
-    reader_id INTEGER NOT NULL, -- ID читателя
-    fine_type VARCHAR(20) NOT NULL CHECK (fine_type IN ('overdue', 'damage', 'loss', 'other')), -- Тип штрафа
-    amount DECIMAL(10, 2) NOT NULL, -- Сумма штрафа
-    fine_date DATE NOT NULL DEFAULT CURRENT_DATE, -- Дата начисления штрафа
-    payment_date DATE, -- Дата оплаты
-    status VARCHAR(20) NOT NULL DEFAULT 'unpaid' CHECK (status IN ('unpaid', 'paid', 'waived')), -- Статус оплаты
-    description TEXT, -- Описание штрафа
-    librarian_id INTEGER NOT NULL, -- ID библиотекаря, начислившего штраф
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_fines_loan_history FOREIGN KEY (loan_history_id) REFERENCES loan_history (id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_fines_reader FOREIGN KEY (reader_id) REFERENCES readers (id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_fines_librarian FOREIGN KEY (librarian_id) REFERENCES librarians (id) ON DELETE RESTRICT ON UPDATE CASCADE
-);
-
-CREATE INDEX idx_fines_reader_id ON fines (reader_id);
-CREATE INDEX idx_fines_status ON fines (status);
-CREATE INDEX idx_fines_fine_date ON fines (fine_date);
-
-CREATE TRIGGER update_fines_updated_at BEFORE UPDATE ON fines
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- 10. Таблица операций/логов
-CREATE TABLE operation_logs (
-    id SERIAL PRIMARY KEY,
-    operation_type VARCHAR(20) NOT NULL CHECK (operation_type IN ('loan', 'return', 'renewal', 'reservation', 'fine', 'registration', 'book_add', 'book_remove')),
-    entity_type VARCHAR(20) NOT NULL CHECK (entity_type IN ('book', 'reader', 'hall', 'loan', 'reservation')),
-    entity_id INTEGER NOT NULL, -- ID сущности, с которой производилась операция
-    librarian_id INTEGER, -- ID библиотекаря, выполнившего операцию
-    operation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    details JSONB, -- Детали операции в формате JSON
-    description TEXT -- Описание операции
-);
-
-CREATE INDEX idx_operation_logs_operation_type ON operation_logs (operation_type);
-CREATE INDEX idx_operation_logs_entity ON operation_logs (entity_type, entity_id);
-CREATE INDEX idx_operation_logs_operation_date ON operation_logs (operation_date);
-CREATE INDEX idx_operation_logs_librarian_id ON operation_logs (librarian_id);
-
--- 11. Таблица статистики по дням (для аналитики)
-CREATE TABLE daily_statistics (
-    id SERIAL PRIMARY KEY,
-    stat_date DATE NOT NULL UNIQUE,
-    total_loans INTEGER NOT NULL DEFAULT 0, -- Выдач за день
-    total_returns INTEGER NOT NULL DEFAULT 0, -- Возвратов за день
-    total_renewals INTEGER NOT NULL DEFAULT 0, -- Продлений за день
-    total_reservations INTEGER NOT NULL DEFAULT 0, -- Бронирований за день
-    total_new_readers INTEGER NOT NULL DEFAULT 0, -- Новых читателей за день
-    total_fines_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00, -- Сумма штрафов за день
-    overdue_books INTEGER NOT NULL DEFAULT 0, -- Просроченных книг на конец дня
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_daily_statistics_stat_date ON daily_statistics (stat_date);
-
-CREATE TRIGGER update_daily_statistics_updated_at BEFORE UPDATE ON daily_statistics
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-
+-- 1. Таблица пользователей системы (администраторы, библиотекари, читатели)
 CREATE TABLE users (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('super_admin', 'admin', 'librarian')),
-    full_name VARCHAR(100) NOT NULL,
-    phone VARCHAR(20),
-    is_active BOOLEAN DEFAULT true,
-    is_first_admin BOOLEAN DEFAULT false, -- Флаг для первоначального администратора
-    last_login_at TIMESTAMP,
-    created_by BIGINT REFERENCES users(id),
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    role user_role NOT NULL DEFAULT 'reader',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Создаем индексы
-CREATE INDEX idx_users_username ON users(username);
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_is_active ON users(is_active);
+-- 2. Таблица читальных залов
+CREATE TABLE reading_halls (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+    library_name VARCHAR(100) NOT NULL,
+    hall_name VARCHAR(100) NOT NULL,
+    specialization VARCHAR(200),
+    total_seats INTEGER NOT NULL CHECK (total_seats > 0),
+    occupied_seats INTEGER DEFAULT 0 CHECK (occupied_seats >= 0),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_occupied_seats CHECK (occupied_seats <= total_seats)
+);
 
+-- 3. Таблица читателей (профили пользователей с ролью reader)
+CREATE TABLE readers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+    user_id UUID UNIQUE REFERENCES users (id) ON DELETE CASCADE,
+    ticket_number VARCHAR(20) UNIQUE NOT NULL,
+    full_name VARCHAR(200) NOT NULL,
+    birth_date DATE NOT NULL,
+    phone VARCHAR(20),
+    education VARCHAR(100),
+    reading_hall_id UUID REFERENCES reading_halls (id),
+    registration_date DATE DEFAULT CURRENT_DATE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
--- Комментарии к таблицам
-COMMENT ON TABLE halls IS 'Таблица читальных залов';
-COMMENT ON TABLE readers IS 'Таблица читателей';
-COMMENT ON TABLE book_categories IS 'Таблица категорий книг';
-COMMENT ON TABLE books IS 'Таблица книг';
-COMMENT ON TABLE librarians IS 'Таблица сотрудников (библиотекарей)';
-COMMENT ON TABLE loan_history IS 'Основная таблица истории выдачи книг';
-COMMENT ON TABLE renewals IS 'Таблица продлений';
-COMMENT ON TABLE reservations IS 'Таблица бронирования книг';
-COMMENT ON TABLE fines IS 'Таблица штрафов';
-COMMENT ON TABLE operation_logs IS 'Таблица операций/логов';
-COMMENT ON TABLE daily_statistics IS 'Таблица статистики по дням (для аналитики)';
+-- 4. Таблица авторов
+CREATE TABLE authors (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+    full_name VARCHAR(200) NOT NULL,
+    birth_year INTEGER,
+    death_year INTEGER,
+    biography TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_birth_death_year CHECK (
+        death_year IS NULL
+        OR death_year >= birth_year
+    )
+);
+
+-- 5. Таблица книг
+CREATE TABLE books (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+    title VARCHAR(500) NOT NULL,
+    isbn VARCHAR(17),
+    publication_year INTEGER,
+    publisher VARCHAR(200),
+    pages INTEGER,
+    language VARCHAR(50) DEFAULT 'Russian',
+    description TEXT,
+    total_copies INTEGER NOT NULL DEFAULT 1 CHECK (total_copies > 0),
+    available_copies INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_available_copies CHECK (
+        available_copies >= 0
+        AND available_copies <= total_copies
+    )
+);
+
+-- 6. Связующая таблица авторов и книг (многие ко многим)
+CREATE TABLE book_authors (
+    book_id UUID REFERENCES books (id) ON DELETE CASCADE,
+    author_id UUID REFERENCES authors (id) ON DELETE CASCADE,
+    PRIMARY KEY (book_id, author_id)
+);
+
+-- 7. Таблица экземпляров книг
+CREATE TABLE book_copies (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+    book_id UUID NOT NULL REFERENCES books (id) ON DELETE CASCADE,
+    copy_code VARCHAR(50) UNIQUE NOT NULL, -- Шифр книги
+    status book_status DEFAULT 'available',
+    reading_hall_id UUID REFERENCES reading_halls (id),
+    condition_notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8. Таблица выдач книг
+CREATE TABLE book_issues (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+    reader_id UUID NOT NULL REFERENCES readers (id),
+    book_copy_id UUID NOT NULL REFERENCES book_copies (id),
+    issue_date DATE DEFAULT CURRENT_DATE,
+    due_date DATE NOT NULL,
+    return_date DATE,
+    extended_count INTEGER DEFAULT 0,
+    librarian_id UUID REFERENCES users (id),
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_dates CHECK (
+        due_date >= issue_date
+        AND (
+            return_date IS NULL
+            OR return_date >= issue_date
+        )
+    )
+);
+
+-- 9. Таблица штрафов
+CREATE TABLE fines (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+    reader_id UUID NOT NULL REFERENCES readers (id),
+    book_issue_id UUID REFERENCES book_issues (id),
+    amount DECIMAL(10, 2) NOT NULL CHECK (amount >= 0),
+    reason VARCHAR(500) NOT NULL,
+    fine_date DATE DEFAULT CURRENT_DATE,
+    paid_date DATE,
+    paid_amount DECIMAL(10, 2) DEFAULT 0 CHECK (paid_amount >= 0),
+    is_paid BOOLEAN DEFAULT FALSE,
+    librarian_id UUID REFERENCES users (id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 10. Таблица рейтингов книг
+CREATE TABLE book_ratings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+    book_id UUID NOT NULL REFERENCES books (id) ON DELETE CASCADE,
+    reader_id UUID NOT NULL REFERENCES readers (id),
+    rating INTEGER NOT NULL CHECK (
+        rating >= 1
+        AND rating <= 5
+    ),
+    review TEXT,
+    rating_date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (book_id, reader_id)
+);
+
+-- 11. Таблица логов системы
+CREATE TABLE system_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+    user_id UUID REFERENCES users (id),
+    action_type action_type NOT NULL,
+    entity_type VARCHAR(50), -- books, readers, fines, etc.
+    entity_id UUID,
+    old_values JSONB,
+    new_values JSONB,
+    ip_address INET,
+    user_agent TEXT,
+    action_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    details TEXT
+);
+
+-- Создание индексов для оптимизации запросов
+-- Основные индексы для поиска
+CREATE INDEX idx_users_username ON users (username);
+
+CREATE INDEX idx_users_email ON users (email);
+
+CREATE INDEX idx_users_role ON users (role);
+
+CREATE INDEX idx_readers_ticket_number ON readers (ticket_number);
+
+CREATE INDEX idx_readers_user_id ON readers (user_id);
+
+CREATE INDEX idx_readers_hall_id ON readers (reading_hall_id);
+
+-- Индексы для книг и авторов
+CREATE INDEX idx_books_title ON books USING gin (to_tsvector ('russian', title));
+
+CREATE INDEX idx_books_isbn ON books (isbn);
+
+CREATE INDEX idx_authors_name ON authors USING gin (to_tsvector ('russian', full_name));
+
+CREATE INDEX idx_book_copies_code ON book_copies (copy_code);
+
+CREATE INDEX idx_book_copies_status ON book_copies (status);
+
+CREATE INDEX idx_book_copies_book_id ON book_copies (book_id);
+
+-- Индексы для выдач и штрафов
+CREATE INDEX idx_book_issues_reader_id ON book_issues (reader_id);
+
+CREATE INDEX idx_book_issues_copy_id ON book_issues (book_copy_id);
+
+CREATE INDEX idx_book_issues_dates ON book_issues (issue_date, due_date, return_date);
+
+CREATE INDEX idx_book_issues_active ON book_issues (reader_id)
+WHERE
+    return_date IS NULL;
+
+CREATE INDEX idx_fines_reader_id ON fines (reader_id);
+
+CREATE INDEX idx_fines_unpaid ON fines (reader_id)
+WHERE
+    is_paid = FALSE;
+
+-- Индексы для рейтингов и логов
+CREATE INDEX idx_book_ratings_book_id ON book_ratings (book_id);
+
+CREATE INDEX idx_book_ratings_rating ON book_ratings (rating);
+
+CREATE INDEX idx_system_logs_user_id ON system_logs (user_id);
+
+CREATE INDEX idx_system_logs_timestamp ON system_logs (action_timestamp);
+
+CREATE INDEX idx_system_logs_action_type ON system_logs (action_type);

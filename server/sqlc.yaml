@@ -55,6 +55,18 @@ sql:
               type: "Time"
             nullable: false
 
+          - db_type: "uuid"
+            nullable: false
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type:
+              pointer: true
+              import: "github.com/google/uuid"
+              type: "UUID"
+
           - db_type: "numeric"
             go_type:
               import: "github.com/govalues/decimal"
@@ -78,6 +90,10 @@ sql:
               import: "github.com/govalues/decimal"
               type: "Decimal"
           - column: "fines.amount"
+            go_type:
+              import: "github.com/govalues/decimal"
+              type: "Decimal"
+          - column: "fines.paid_amount"
             go_type:
               import: "github.com/govalues/decimal"
               type: "Decimal"

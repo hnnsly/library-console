@@ -2,61 +2,111 @@ package config
 
 import (
 	"fmt"
-	"strings"
+	"os"
+	"time"
 
-	"github.com/spf13/viper"
+	"github.com/goccy/go-yaml"
+	"github.com/rs/zerolog"
 )
 
-type Config struct {
-	Log            *LogConfig            `mapstructure:"log"`
-	Db             *DBConfig             `mapstructure:"db"`
-	Rd             *RedisConfig          `mapstructure:"rd"`
-	LibraryService *LibraryServiceConfig `mapstructure:"library_service"`
+// --- Общие структуры ---
+
+type Logger struct {
+	LogFilePath  string        `yaml:"logFilePath"`
+	LoggingLevel zerolog.Level `yaml:"loggingLevel"` // zerolog.Level может быть строкой ("info", "debug") или числом
+	DevMode      bool          `yaml:"devMode"`
 }
 
-type LogConfig struct {
-	Level string `mapstructure:"level"`
-	File  string `mapstructure:"file"`
+type Database struct {
+	Host     string `yaml:"host"`
+	Port     string `yaml:"port"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+	Database string `yaml:"database"`
 }
 
-type DBConfig struct {
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	User     string `mapstructure:"user"`
-	Password string `mapstructure:"password"`
-	Name     string `mapstructure:"name"`
-	SSLMode  string `mapstructure:"sslmode"`
+func (db *Database) URL() string {
+	return fmt.Sprintf(
+		"postgres://%s:%s@%s:%s/%s",
+		db.User, db.Password, db.Host, db.Port, db.Database,
+	)
 }
 
-func (c *DBConfig) URL() string {
-	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
-		c.User, c.Password, c.Host, c.Port, c.Name, c.SSLMode)
+type Redis struct {
+	Host     string `yaml:"host"`
+	Port     string `yaml:"port"`
+	Password string `yaml:"password,omitempty"` // Пароль может быть опциональным
 }
 
-type RedisConfig struct {
-	Addr            string `mapstructure:"addr"`
-	Password        string `mapstructure:"password"`
-	DB              int    `mapstructure:"db"`
-	PoolSize        int    `mapstructure:"pool_size"`
-	CacheTTLSeconds int    `mapstructure:"cache_ttl_seconds"`
+// --- Конфигурации для сервиса ---
+
+// SessionConfig содержит настройки сессии.
+type SessionConfig struct {
+	Secret     string        `yaml:"secret"`
+	Name       string        `yaml:"name"`
+	TTL        time.Duration `yaml:"ttl"` // go-yaml напрямую парсит строки типа "24h", "30m"
+	CookiePath string        `yaml:"cookiePath"`
+	Secure     bool          `yaml:"secure"`
+	HttpOnly   bool          `yaml:"httpOnly"`
+	SameSite   string        `yaml:"sameSite"` // "Lax", "Strict", "None"
 }
 
+// LibraryServiceConfig содержит настройки для сервиса библиотеки
 type LibraryServiceConfig struct {
-	Port int `mapstructure:"port"`
+	Port          int            `yaml:"port"`
+	DevMode       bool           `yaml:"devMode"`
+	AllowedOrigin string         `yaml:"allowedOrigin,omitempty"`
+	Session       *SessionConfig `yaml:"session,omitempty"`
 }
 
-func Load(path string) (*Config, error) {
-	viper.SetConfigFile(path)
-	viper.SetConfigType(strings.TrimPrefix(path[strings.LastIndex(path, ".")+1:], ".")) // yml, json, etc.
-	viper.AutomaticEnv()                                                                // Read in environment variables that match
+// --- Основная структура Config ---
 
-	if err := viper.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("error reading config file: %w", err)
+type Config struct {
+	Log     *Logger               `yaml:"logger"`
+	Db      *Database             `yaml:"database"`
+	Rd      *Redis                `yaml:"redis"`
+	Library *LibraryServiceConfig `yaml:"library"`
+}
+
+// Load читает YAML-конфиг, указан­ный в path, и возвращает готовую Config.
+func Load(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("can't open %s: %w", path, err)
 	}
 
 	var cfg Config
-	if err := viper.Unmarshal(&cfg); err != nil {
-		return nil, fmt.Errorf("unable to decode into struct: %w", err)
+	// Строгая проверка конфигурации
+	if err := yaml.UnmarshalWithOptions(data, &cfg, yaml.Strict()); err != nil {
+		return nil, fmt.Errorf("parse yaml: %w", err)
+	}
+
+	// Проверка обязательных секций конфигурации
+	if cfg.Log == nil {
+		return nil, fmt.Errorf("logger configuration is missing")
+	}
+	if cfg.Db == nil {
+		return nil, fmt.Errorf("database configuration is missing")
+	}
+	if cfg.Rd == nil {
+		return nil, fmt.Errorf("redis configuration is missing")
+	}
+
+	// Проверка настроек библиотечного сервиса
+	if cfg.Library != nil {
+		if cfg.Library.Port == 0 {
+			return nil, fmt.Errorf("library service port must be configured")
+		}
+		if cfg.Library.Session != nil {
+			if cfg.Library.Session.Secret == "" {
+				return nil, fmt.Errorf("library session secret is required")
+			}
+			if cfg.Library.Session.TTL == 0 {
+				return nil, fmt.Errorf("library session TTL is required and must be a valid duration string (e.g., '24h', '30m')")
+			}
+		}
+	} else {
+		return nil, fmt.Errorf("library service configuration is missing")
 	}
 
 	return &cfg, nil

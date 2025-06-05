@@ -5,196 +5,278 @@
 package postgres
 
 import (
+	"database/sql/driver"
+	"fmt"
+	"net/netip"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/govalues/decimal"
 )
 
-// Таблица книг
+type ActionType string
+
+const (
+	ActionTypeLogin          ActionType = "login"
+	ActionTypeLogout         ActionType = "logout"
+	ActionTypeBookIssue      ActionType = "book_issue"
+	ActionTypeBookReturn     ActionType = "book_return"
+	ActionTypeBookExtend     ActionType = "book_extend"
+	ActionTypeBookAdd        ActionType = "book_add"
+	ActionTypeBookRemove     ActionType = "book_remove"
+	ActionTypeReaderRegister ActionType = "reader_register"
+	ActionTypeReaderUpdate   ActionType = "reader_update"
+	ActionTypeFinePayment    ActionType = "fine_payment"
+)
+
+func (e *ActionType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ActionType(s)
+	case string:
+		*e = ActionType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ActionType: %T", src)
+	}
+	return nil
+}
+
+type NullActionType struct {
+	ActionType ActionType `json:"action_type"`
+	Valid      bool       `json:"valid"` // Valid is true if ActionType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullActionType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ActionType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ActionType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullActionType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ActionType), nil
+}
+
+type BookStatus string
+
+const (
+	BookStatusAvailable BookStatus = "available"
+	BookStatusIssued    BookStatus = "issued"
+	BookStatusReserved  BookStatus = "reserved"
+	BookStatusLost      BookStatus = "lost"
+	BookStatusDamaged   BookStatus = "damaged"
+)
+
+func (e *BookStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = BookStatus(s)
+	case string:
+		*e = BookStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for BookStatus: %T", src)
+	}
+	return nil
+}
+
+type NullBookStatus struct {
+	BookStatus BookStatus `json:"book_status"`
+	Valid      bool       `json:"valid"` // Valid is true if BookStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullBookStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.BookStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.BookStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullBookStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.BookStatus), nil
+}
+
+type UserRole string
+
+const (
+	UserRoleAdministrator UserRole = "administrator"
+	UserRoleLibrarian     UserRole = "librarian"
+	UserRoleReader        UserRole = "reader"
+)
+
+func (e *UserRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = UserRole(s)
+	case string:
+		*e = UserRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for UserRole: %T", src)
+	}
+	return nil
+}
+
+type NullUserRole struct {
+	UserRole UserRole `json:"user_role"`
+	Valid    bool     `json:"valid"` // Valid is true if UserRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullUserRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.UserRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.UserRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullUserRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.UserRole), nil
+}
+
+type Author struct {
+	ID        uuid.UUID  `json:"id"`
+	FullName  string     `json:"full_name"`
+	BirthYear *int       `json:"birth_year"`
+	DeathYear *int       `json:"death_year"`
+	Biography *string    `json:"biography"`
+	CreatedAt *time.Time `json:"created_at"`
+}
+
 type Book struct {
-	ID              int64           `json:"id"`
-	Title           string          `json:"title"`
-	Author          string          `json:"author"`
-	PublicationYear int             `json:"publication_year"`
-	Isbn            *string         `json:"isbn"`
-	BookCode        string          `json:"book_code"`
-	CategoryID      *int            `json:"category_id"`
-	HallID          int             `json:"hall_id"`
-	TotalCopies     int             `json:"total_copies"`
-	AvailableCopies int             `json:"available_copies"`
-	ConditionStatus string          `json:"condition_status"`
-	LocationInfo    *string         `json:"location_info"`
-	MaxLoanDays     int             `json:"max_loan_days"`
-	MaxRenewals     int             `json:"max_renewals"`
-	PopularityScore int             `json:"popularity_score"`
-	Rating          decimal.Decimal `json:"rating"`
-	AcquisitionDate time.Time       `json:"acquisition_date"`
-	Status          string          `json:"status"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	ID              uuid.UUID  `json:"id"`
+	Title           string     `json:"title"`
+	Isbn            *string    `json:"isbn"`
+	PublicationYear *int       `json:"publication_year"`
+	Publisher       *string    `json:"publisher"`
+	Pages           *int       `json:"pages"`
+	Language        *string    `json:"language"`
+	Description     *string    `json:"description"`
+	TotalCopies     int        `json:"total_copies"`
+	AvailableCopies int        `json:"available_copies"`
+	CreatedAt       *time.Time `json:"created_at"`
+	UpdatedAt       *time.Time `json:"updated_at"`
 }
 
-// Таблица категорий книг
-type BookCategory struct {
-	ID              int64     `json:"id"`
-	Name            string    `json:"name"`
-	Description     *string   `json:"description"`
-	DefaultLoanDays int       `json:"default_loan_days"`
-	CreatedAt       time.Time `json:"created_at"`
+type BookAuthor struct {
+	BookID   uuid.UUID `json:"book_id"`
+	AuthorID uuid.UUID `json:"author_id"`
 }
 
-// Таблица статистики по дням (для аналитики)
-type DailyStatistic struct {
-	ID                int64           `json:"id"`
-	StatDate          time.Time       `json:"stat_date"`
-	TotalLoans        int             `json:"total_loans"`
-	TotalReturns      int             `json:"total_returns"`
-	TotalRenewals     int             `json:"total_renewals"`
-	TotalReservations int             `json:"total_reservations"`
-	TotalNewReaders   int             `json:"total_new_readers"`
-	TotalFinesAmount  decimal.Decimal `json:"total_fines_amount"`
-	OverdueBooks      int             `json:"overdue_books"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
+type BookCopy struct {
+	ID             uuid.UUID      `json:"id"`
+	BookID         uuid.UUID      `json:"book_id"`
+	CopyCode       string         `json:"copy_code"`
+	Status         NullBookStatus `json:"status"`
+	ReadingHallID  *uuid.UUID     `json:"reading_hall_id"`
+	ConditionNotes *string        `json:"condition_notes"`
+	CreatedAt      *time.Time     `json:"created_at"`
+	UpdatedAt      *time.Time     `json:"updated_at"`
 }
 
-// Таблица штрафов
+type BookIssue struct {
+	ID            uuid.UUID  `json:"id"`
+	ReaderID      uuid.UUID  `json:"reader_id"`
+	BookCopyID    uuid.UUID  `json:"book_copy_id"`
+	IssueDate     *time.Time `json:"issue_date"`
+	DueDate       time.Time  `json:"due_date"`
+	ReturnDate    *time.Time `json:"return_date"`
+	ExtendedCount *int       `json:"extended_count"`
+	LibrarianID   *uuid.UUID `json:"librarian_id"`
+	Notes         *string    `json:"notes"`
+	CreatedAt     *time.Time `json:"created_at"`
+	UpdatedAt     *time.Time `json:"updated_at"`
+}
+
+type BookRating struct {
+	ID         uuid.UUID  `json:"id"`
+	BookID     uuid.UUID  `json:"book_id"`
+	ReaderID   uuid.UUID  `json:"reader_id"`
+	Rating     int        `json:"rating"`
+	Review     *string    `json:"review"`
+	RatingDate *time.Time `json:"rating_date"`
+	CreatedAt  *time.Time `json:"created_at"`
+}
+
 type Fine struct {
-	ID            int64           `json:"id"`
-	LoanHistoryID int             `json:"loan_history_id"`
-	ReaderID      int             `json:"reader_id"`
-	FineType      string          `json:"fine_type"`
-	Amount        decimal.Decimal `json:"amount"`
-	FineDate      time.Time       `json:"fine_date"`
-	PaymentDate   *time.Time      `json:"payment_date"`
-	Status        string          `json:"status"`
-	Description   *string         `json:"description"`
-	LibrarianID   int             `json:"librarian_id"`
-	CreatedAt     time.Time       `json:"created_at"`
-	UpdatedAt     time.Time       `json:"updated_at"`
+	ID          uuid.UUID       `json:"id"`
+	ReaderID    uuid.UUID       `json:"reader_id"`
+	BookIssueID *uuid.UUID      `json:"book_issue_id"`
+	Amount      decimal.Decimal `json:"amount"`
+	Reason      string          `json:"reason"`
+	FineDate    *time.Time      `json:"fine_date"`
+	PaidDate    *time.Time      `json:"paid_date"`
+	PaidAmount  decimal.Decimal `json:"paid_amount"`
+	IsPaid      *bool           `json:"is_paid"`
+	LibrarianID *uuid.UUID      `json:"librarian_id"`
+	CreatedAt   *time.Time      `json:"created_at"`
+	UpdatedAt   *time.Time      `json:"updated_at"`
 }
 
-// Таблица читальных залов
-type Hall struct {
-	ID               int64           `json:"id"`
-	Name             string          `json:"name"`
-	LibraryName      string          `json:"library_name"`
-	Specialization   string          `json:"specialization"`
-	TotalSeats       int             `json:"total_seats"`
-	OccupiedSeats    int             `json:"occupied_seats"`
-	WorkingHours     string          `json:"working_hours"`
-	Equipment        *string         `json:"equipment"`
-	Status           string          `json:"status"`
-	VisitStatistics  int             `json:"visit_statistics"`
-	AverageOccupancy decimal.Decimal `json:"average_occupancy"`
-	CreatedAt        time.Time       `json:"created_at"`
-	UpdatedAt        time.Time       `json:"updated_at"`
-}
-
-// Таблица сотрудников (библиотекарей)
-type Librarian struct {
-	ID         int64     `json:"id"`
-	FullName   string    `json:"full_name"`
-	EmployeeID string    `json:"employee_id"`
-	Position   string    `json:"position"`
-	Phone      *string   `json:"phone"`
-	Email      *string   `json:"email"`
-	HireDate   time.Time `json:"hire_date"`
-	Status     string    `json:"status"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
-}
-
-// Основная таблица истории выдачи книг
-type LoanHistory struct {
-	ID                int64           `json:"id"`
-	BookID            int             `json:"book_id"`
-	ReaderID          int             `json:"reader_id"`
-	LibrarianID       int             `json:"librarian_id"`
-	LoanDate          time.Time       `json:"loan_date"`
-	DueDate           time.Time       `json:"due_date"`
-	ReturnDate        *time.Time      `json:"return_date"`
-	RenewalsCount     int             `json:"renewals_count"`
-	Status            string          `json:"status"`
-	FineAmount        decimal.Decimal `json:"fine_amount"`
-	FinePaid          bool            `json:"fine_paid"`
-	Comments          *string         `json:"comments"`
-	ReturnLibrarianID *int            `json:"return_librarian_id"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-}
-
-// Таблица операций/логов
-type OperationLog struct {
-	ID            int64     `json:"id"`
-	OperationType string    `json:"operation_type"`
-	EntityType    string    `json:"entity_type"`
-	EntityID      int       `json:"entity_id"`
-	LibrarianID   *int      `json:"librarian_id"`
-	OperationDate time.Time `json:"operation_date"`
-	Details       []byte    `json:"details"`
-	Description   *string   `json:"description"`
-}
-
-// Таблица читателей
 type Reader struct {
-	ID                 int64           `json:"id"`
-	FullName           string          `json:"full_name"`
-	TicketNumber       string          `json:"ticket_number"`
-	BirthDate          time.Time       `json:"birth_date"`
-	Phone              *string         `json:"phone"`
-	Email              *string         `json:"email"`
-	Education          *string         `json:"education"`
-	HallID             int             `json:"hall_id"`
-	MaxBooksAllowed    int             `json:"max_books_allowed"`
-	MaxRenewalsAllowed int             `json:"max_renewals_allowed"`
-	TotalDebt          decimal.Decimal `json:"total_debt"`
-	Status             string          `json:"status"`
-	ReaderRating       int             `json:"reader_rating"`
-	RegistrationDate   time.Time       `json:"registration_date"`
-	LastActivityDate   *time.Time      `json:"last_activity_date"`
-	CreatedAt          time.Time       `json:"created_at"`
-	UpdatedAt          time.Time       `json:"updated_at"`
+	ID               uuid.UUID  `json:"id"`
+	UserID           *uuid.UUID `json:"user_id"`
+	TicketNumber     string     `json:"ticket_number"`
+	FullName         string     `json:"full_name"`
+	BirthDate        time.Time  `json:"birth_date"`
+	Phone            *string    `json:"phone"`
+	Education        *string    `json:"education"`
+	ReadingHallID    *uuid.UUID `json:"reading_hall_id"`
+	RegistrationDate *time.Time `json:"registration_date"`
+	IsActive         *bool      `json:"is_active"`
+	CreatedAt        *time.Time `json:"created_at"`
+	UpdatedAt        *time.Time `json:"updated_at"`
 }
 
-// Таблица продлений
-type Renewal struct {
-	ID            int64     `json:"id"`
-	LoanHistoryID int       `json:"loan_history_id"`
-	RenewalDate   time.Time `json:"renewal_date"`
-	OldDueDate    time.Time `json:"old_due_date"`
-	NewDueDate    time.Time `json:"new_due_date"`
-	LibrarianID   int       `json:"librarian_id"`
-	Reason        *string   `json:"reason"`
-	CreatedAt     time.Time `json:"created_at"`
+type ReadingHall struct {
+	ID             uuid.UUID  `json:"id"`
+	LibraryName    string     `json:"library_name"`
+	HallName       string     `json:"hall_name"`
+	Specialization *string    `json:"specialization"`
+	TotalSeats     int        `json:"total_seats"`
+	OccupiedSeats  *int       `json:"occupied_seats"`
+	CreatedAt      *time.Time `json:"created_at"`
 }
 
-// Таблица бронирования книг
-type Reservation struct {
-	ID               int64     `json:"id"`
-	BookID           int       `json:"book_id"`
-	ReaderID         int       `json:"reader_id"`
-	ReservationDate  time.Time `json:"reservation_date"`
-	ExpirationDate   time.Time `json:"expiration_date"`
-	Status           string    `json:"status"`
-	PriorityOrder    int       `json:"priority_order"`
-	NotificationSent bool      `json:"notification_sent"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+type SystemLog struct {
+	ID              uuid.UUID   `json:"id"`
+	UserID          *uuid.UUID  `json:"user_id"`
+	ActionType      ActionType  `json:"action_type"`
+	EntityType      *string     `json:"entity_type"`
+	EntityID        *uuid.UUID  `json:"entity_id"`
+	OldValues       []byte      `json:"old_values"`
+	NewValues       []byte      `json:"new_values"`
+	IpAddress       *netip.Addr `json:"ip_address"`
+	UserAgent       *string     `json:"user_agent"`
+	ActionTimestamp *time.Time  `json:"action_timestamp"`
+	Details         *string     `json:"details"`
 }
 
 type User struct {
-	ID           int64      `json:"id"`
+	ID           uuid.UUID  `json:"id"`
 	Username     string     `json:"username"`
 	Email        string     `json:"email"`
 	PasswordHash string     `json:"password_hash"`
-	Role         string     `json:"role"`
-	FullName     string     `json:"full_name"`
-	Phone        *string    `json:"phone"`
+	Role         UserRole   `json:"role"`
 	IsActive     *bool      `json:"is_active"`
-	IsFirstAdmin *bool      `json:"is_first_admin"`
-	LastLoginAt  *time.Time `json:"last_login_at"`
-	CreatedBy    *int64     `json:"created_by"`
 	CreatedAt    *time.Time `json:"created_at"`
 	UpdatedAt    *time.Time `json:"updated_at"`
 }

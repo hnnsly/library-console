@@ -13,8 +13,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func Setup(cfg *config.LogConfig) *zerolog.Logger {
-	zerolog.ParseLevel(cfg.Level)
+func Setup(cfg *config.Logger) *zerolog.Logger {
+	zerolog.SetGlobalLevel(cfg.LoggingLevel)
 
 	zerolog.TimeFieldFormat = time.DateTime
 
@@ -27,7 +27,23 @@ func Setup(cfg *config.LogConfig) *zerolog.Logger {
 		return file + ":" + strconv.Itoa(line)
 	}
 
-	logFile, err := os.OpenFile(cfg.File, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
+	if cfg.DevMode {
+		log.Debug().Msg("Dev mode enabled, writing logs to stdout")
+
+		loggerContext := zerolog.New(os.Stdout).
+			With().
+			Timestamp().
+			Logger().
+			With().
+			Caller().
+			Logger()
+
+		log.Info().Msg("logger setup complete!")
+
+		return &loggerContext
+	}
+
+	logFile, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to open log file")
 	}
