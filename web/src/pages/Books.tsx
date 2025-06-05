@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Search, Filter, PlusCircle, Check, X } from "lucide-react";
+import { Search, PlusCircle, Check, X } from "lucide-react";
 import { books } from "../data/mockData";
 import { Book } from "../types";
 
