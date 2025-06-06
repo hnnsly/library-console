@@ -7,122 +7,131 @@ package postgres
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 )
 
-const countAvailableBookCopies = `-- name: CountAvailableBookCopies :one
-SELECT COUNT(*) FROM book_copies WHERE book_id = $1 AND status = 'available'
-`
-
-func (q *Queries) CountAvailableBookCopies(ctx context.Context, bookID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countAvailableBookCopies, bookID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countBookCopiesByBook = `-- name: CountBookCopiesByBook :one
-SELECT COUNT(*) FROM book_copies WHERE book_id = $1
-`
-
-func (q *Queries) CountBookCopiesByBook(ctx context.Context, bookID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countBookCopiesByBook, bookID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createBookCopy = `-- name: CreateBookCopy :one
-INSERT INTO book_copies (book_id, copy_code, status, reading_hall_id, condition_notes)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, book_id, copy_code, status, reading_hall_id, condition_notes, created_at, updated_at
+INSERT INTO book_copies (book_id, copy_code, hall_id, location_info)
+VALUES ($1, $2, $3, $4)
+RETURNING id, copy_code, status
 `
 
 type CreateBookCopyParams struct {
-	BookID         uuid.UUID      `json:"book_id"`
-	CopyCode       string         `json:"copy_code"`
-	Status         NullBookStatus `json:"status"`
-	ReadingHallID  *uuid.UUID     `json:"reading_hall_id"`
-	ConditionNotes *string        `json:"condition_notes"`
+	BookID       uuid.UUID  `json:"book_id"`
+	CopyCode     string     `json:"copy_code"`
+	HallID       *uuid.UUID `json:"hall_id"`
+	LocationInfo *string    `json:"location_info"`
 }
 
-func (q *Queries) CreateBookCopy(ctx context.Context, arg CreateBookCopyParams) (*BookCopy, error) {
+type CreateBookCopyRow struct {
+	ID       uuid.UUID      `json:"id"`
+	CopyCode string         `json:"copy_code"`
+	Status   NullBookStatus `json:"status"`
+}
+
+func (q *Queries) CreateBookCopy(ctx context.Context, arg CreateBookCopyParams) (*CreateBookCopyRow, error) {
 	row := q.db.QueryRow(ctx, createBookCopy,
 		arg.BookID,
 		arg.CopyCode,
-		arg.Status,
-		arg.ReadingHallID,
-		arg.ConditionNotes,
+		arg.HallID,
+		arg.LocationInfo,
 	)
-	var i BookCopy
+	var i CreateBookCopyRow
+	err := row.Scan(&i.ID, &i.CopyCode, &i.Status)
+	return &i, err
+}
+
+const getAvailableBookCopy = `-- name: GetAvailableBookCopy :one
+SELECT bc.id, bc.copy_code, bc.status, b.title, bc.location_info
+FROM book_copies bc
+JOIN books b ON bc.book_id = b.id
+WHERE bc.copy_code = $1 AND bc.status = 'available'
+`
+
+type GetAvailableBookCopyRow struct {
+	ID           uuid.UUID      `json:"id"`
+	CopyCode     string         `json:"copy_code"`
+	Status       NullBookStatus `json:"status"`
+	Title        string         `json:"title"`
+	LocationInfo *string        `json:"location_info"`
+}
+
+func (q *Queries) GetAvailableBookCopy(ctx context.Context, copyCode string) (*GetAvailableBookCopyRow, error) {
+	row := q.db.QueryRow(ctx, getAvailableBookCopy, copyCode)
+	var i GetAvailableBookCopyRow
 	err := row.Scan(
 		&i.ID,
-		&i.BookID,
 		&i.CopyCode,
 		&i.Status,
-		&i.ReadingHallID,
-		&i.ConditionNotes,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.Title,
+		&i.LocationInfo,
 	)
 	return &i, err
 }
 
-const deleteBookCopy = `-- name: DeleteBookCopy :exec
-DELETE FROM book_copies WHERE id = $1
+const getBookCopiesByBookId = `-- name: GetBookCopiesByBookId :many
+SELECT id, copy_code, status
+FROM book_copies
+WHERE book_id = $1
+ORDER BY copy_code
 `
 
-func (q *Queries) DeleteBookCopy(ctx context.Context, copyID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteBookCopy, copyID)
-	return err
+type GetBookCopiesByBookIdRow struct {
+	ID       uuid.UUID      `json:"id"`
+	CopyCode string         `json:"copy_code"`
+	Status   NullBookStatus `json:"status"`
 }
 
-const getBookCopiesByStatus = `-- name: GetBookCopiesByStatus :many
-SELECT bc.id, bc.book_id, bc.copy_code, bc.status, bc.reading_hall_id, bc.condition_notes, bc.created_at, bc.updated_at, b.title, b.isbn, rh.hall_name
-FROM book_copies bc
-JOIN books b ON bc.book_id = b.id
-LEFT JOIN reading_halls rh ON bc.reading_hall_id = rh.id
-WHERE bc.status = $1
-ORDER BY b.title, bc.copy_code
-`
-
-type GetBookCopiesByStatusRow struct {
-	ID             uuid.UUID      `json:"id"`
-	BookID         uuid.UUID      `json:"book_id"`
-	CopyCode       string         `json:"copy_code"`
-	Status         NullBookStatus `json:"status"`
-	ReadingHallID  *uuid.UUID     `json:"reading_hall_id"`
-	ConditionNotes *string        `json:"condition_notes"`
-	CreatedAt      *time.Time     `json:"created_at"`
-	UpdatedAt      *time.Time     `json:"updated_at"`
-	Title          string         `json:"title"`
-	Isbn           *string        `json:"isbn"`
-	HallName       *string        `json:"hall_name"`
-}
-
-func (q *Queries) GetBookCopiesByStatus(ctx context.Context, status NullBookStatus) ([]*GetBookCopiesByStatusRow, error) {
-	rows, err := q.db.Query(ctx, getBookCopiesByStatus, status)
+func (q *Queries) GetBookCopiesByBookId(ctx context.Context, bookID uuid.UUID) ([]*GetBookCopiesByBookIdRow, error) {
+	rows, err := q.db.Query(ctx, getBookCopiesByBookId, bookID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*GetBookCopiesByStatusRow{}
+	items := []*GetBookCopiesByBookIdRow{}
 	for rows.Next() {
-		var i GetBookCopiesByStatusRow
+		var i GetBookCopiesByBookIdRow
+		if err := rows.Scan(&i.ID, &i.CopyCode, &i.Status); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getBookCopiesByHall = `-- name: GetBookCopiesByHall :many
+SELECT bc.id, bc.copy_code, bc.status, b.title
+FROM book_copies bc
+JOIN books b ON bc.book_id = b.id
+WHERE bc.hall_id = $1
+ORDER BY b.title, bc.copy_code
+`
+
+type GetBookCopiesByHallRow struct {
+	ID       uuid.UUID      `json:"id"`
+	CopyCode string         `json:"copy_code"`
+	Status   NullBookStatus `json:"status"`
+	Title    string         `json:"title"`
+}
+
+func (q *Queries) GetBookCopiesByHall(ctx context.Context, hallID *uuid.UUID) ([]*GetBookCopiesByHallRow, error) {
+	rows, err := q.db.Query(ctx, getBookCopiesByHall, hallID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*GetBookCopiesByHallRow{}
+	for rows.Next() {
+		var i GetBookCopiesByHallRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.BookID,
 			&i.CopyCode,
 			&i.Status,
-			&i.ReadingHallID,
-			&i.ConditionNotes,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.Title,
-			&i.Isbn,
-			&i.HallName,
 		); err != nil {
 			return nil, err
 		}
@@ -135,23 +144,19 @@ func (q *Queries) GetBookCopiesByStatus(ctx context.Context, status NullBookStat
 }
 
 const getBookCopyByCode = `-- name: GetBookCopyByCode :one
-SELECT bc.id, bc.book_id, bc.copy_code, bc.status, bc.reading_hall_id, bc.condition_notes, bc.created_at, bc.updated_at, b.title, b.isbn
+SELECT bc.id, bc.copy_code, bc.status, b.id as book_id, b.title, bc.location_info
 FROM book_copies bc
 JOIN books b ON bc.book_id = b.id
 WHERE bc.copy_code = $1
 `
 
 type GetBookCopyByCodeRow struct {
-	ID             uuid.UUID      `json:"id"`
-	BookID         uuid.UUID      `json:"book_id"`
-	CopyCode       string         `json:"copy_code"`
-	Status         NullBookStatus `json:"status"`
-	ReadingHallID  *uuid.UUID     `json:"reading_hall_id"`
-	ConditionNotes *string        `json:"condition_notes"`
-	CreatedAt      *time.Time     `json:"created_at"`
-	UpdatedAt      *time.Time     `json:"updated_at"`
-	Title          string         `json:"title"`
-	Isbn           *string        `json:"isbn"`
+	ID           uuid.UUID      `json:"id"`
+	CopyCode     string         `json:"copy_code"`
+	Status       NullBookStatus `json:"status"`
+	BookID       uuid.UUID      `json:"book_id"`
+	Title        string         `json:"title"`
+	LocationInfo *string        `json:"location_info"`
 }
 
 func (q *Queries) GetBookCopyByCode(ctx context.Context, copyCode string) (*GetBookCopyByCodeRow, error) {
@@ -159,194 +164,58 @@ func (q *Queries) GetBookCopyByCode(ctx context.Context, copyCode string) (*GetB
 	var i GetBookCopyByCodeRow
 	err := row.Scan(
 		&i.ID,
-		&i.BookID,
 		&i.CopyCode,
 		&i.Status,
-		&i.ReadingHallID,
-		&i.ConditionNotes,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.BookID,
 		&i.Title,
-		&i.Isbn,
+		&i.LocationInfo,
 	)
 	return &i, err
 }
 
-const getBookCopyByID = `-- name: GetBookCopyByID :one
-SELECT bc.id, bc.book_id, bc.copy_code, bc.status, bc.reading_hall_id, bc.condition_notes, bc.created_at, bc.updated_at, b.title, b.isbn
+const getBookCopyById = `-- name: GetBookCopyById :one
+SELECT bc.id, bc.copy_code, bc.status, b.title, rh.hall_name, bc.location_info
 FROM book_copies bc
 JOIN books b ON bc.book_id = b.id
+LEFT JOIN reading_halls rh ON bc.hall_id = rh.id
 WHERE bc.id = $1
 `
 
-type GetBookCopyByIDRow struct {
-	ID             uuid.UUID      `json:"id"`
-	BookID         uuid.UUID      `json:"book_id"`
-	CopyCode       string         `json:"copy_code"`
-	Status         NullBookStatus `json:"status"`
-	ReadingHallID  *uuid.UUID     `json:"reading_hall_id"`
-	ConditionNotes *string        `json:"condition_notes"`
-	CreatedAt      *time.Time     `json:"created_at"`
-	UpdatedAt      *time.Time     `json:"updated_at"`
-	Title          string         `json:"title"`
-	Isbn           *string        `json:"isbn"`
+type GetBookCopyByIdRow struct {
+	ID           uuid.UUID      `json:"id"`
+	CopyCode     string         `json:"copy_code"`
+	Status       NullBookStatus `json:"status"`
+	Title        string         `json:"title"`
+	HallName     *string        `json:"hall_name"`
+	LocationInfo *string        `json:"location_info"`
 }
 
-func (q *Queries) GetBookCopyByID(ctx context.Context, copyID uuid.UUID) (*GetBookCopyByIDRow, error) {
-	row := q.db.QueryRow(ctx, getBookCopyByID, copyID)
-	var i GetBookCopyByIDRow
+func (q *Queries) GetBookCopyById(ctx context.Context, copyID uuid.UUID) (*GetBookCopyByIdRow, error) {
+	row := q.db.QueryRow(ctx, getBookCopyById, copyID)
+	var i GetBookCopyByIdRow
 	err := row.Scan(
 		&i.ID,
-		&i.BookID,
 		&i.CopyCode,
 		&i.Status,
-		&i.ReadingHallID,
-		&i.ConditionNotes,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 		&i.Title,
-		&i.Isbn,
+		&i.HallName,
+		&i.LocationInfo,
 	)
 	return &i, err
 }
 
-const listAvailableBookCopies = `-- name: ListAvailableBookCopies :many
-SELECT bc.id, bc.book_id, bc.copy_code, bc.status, bc.reading_hall_id, bc.condition_notes, bc.created_at, bc.updated_at, b.title, b.isbn
-FROM book_copies bc
-JOIN books b ON bc.book_id = b.id
-WHERE bc.status = 'available'
-ORDER BY b.title, bc.copy_code
-`
-
-type ListAvailableBookCopiesRow struct {
-	ID             uuid.UUID      `json:"id"`
-	BookID         uuid.UUID      `json:"book_id"`
-	CopyCode       string         `json:"copy_code"`
-	Status         NullBookStatus `json:"status"`
-	ReadingHallID  *uuid.UUID     `json:"reading_hall_id"`
-	ConditionNotes *string        `json:"condition_notes"`
-	CreatedAt      *time.Time     `json:"created_at"`
-	UpdatedAt      *time.Time     `json:"updated_at"`
-	Title          string         `json:"title"`
-	Isbn           *string        `json:"isbn"`
-}
-
-func (q *Queries) ListAvailableBookCopies(ctx context.Context) ([]*ListAvailableBookCopiesRow, error) {
-	rows, err := q.db.Query(ctx, listAvailableBookCopies)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []*ListAvailableBookCopiesRow{}
-	for rows.Next() {
-		var i ListAvailableBookCopiesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.BookID,
-			&i.CopyCode,
-			&i.Status,
-			&i.ReadingHallID,
-			&i.ConditionNotes,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Title,
-			&i.Isbn,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listBookCopiesByBook = `-- name: ListBookCopiesByBook :many
-SELECT bc.id, bc.book_id, bc.copy_code, bc.status, bc.reading_hall_id, bc.condition_notes, bc.created_at, bc.updated_at, rh.hall_name
-FROM book_copies bc
-LEFT JOIN reading_halls rh ON bc.reading_hall_id = rh.id
-WHERE bc.book_id = $1
-ORDER BY bc.copy_code
-`
-
-type ListBookCopiesByBookRow struct {
-	ID             uuid.UUID      `json:"id"`
-	BookID         uuid.UUID      `json:"book_id"`
-	CopyCode       string         `json:"copy_code"`
-	Status         NullBookStatus `json:"status"`
-	ReadingHallID  *uuid.UUID     `json:"reading_hall_id"`
-	ConditionNotes *string        `json:"condition_notes"`
-	CreatedAt      *time.Time     `json:"created_at"`
-	UpdatedAt      *time.Time     `json:"updated_at"`
-	HallName       *string        `json:"hall_name"`
-}
-
-func (q *Queries) ListBookCopiesByBook(ctx context.Context, bookID uuid.UUID) ([]*ListBookCopiesByBookRow, error) {
-	rows, err := q.db.Query(ctx, listBookCopiesByBook, bookID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []*ListBookCopiesByBookRow{}
-	for rows.Next() {
-		var i ListBookCopiesByBookRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.BookID,
-			&i.CopyCode,
-			&i.Status,
-			&i.ReadingHallID,
-			&i.ConditionNotes,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.HallName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const updateBookCopy = `-- name: UpdateBookCopy :one
+const updateBookCopyStatus = `-- name: UpdateBookCopyStatus :exec
 UPDATE book_copies
-SET
-    status = COALESCE($1, status),
-    reading_hall_id = COALESCE($2, reading_hall_id),
-    condition_notes = COALESCE($3, condition_notes),
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = $4
-RETURNING id, book_id, copy_code, status, reading_hall_id, condition_notes, created_at, updated_at
+SET status = $1
+WHERE id = $2
 `
 
-type UpdateBookCopyParams struct {
-	Status         NullBookStatus `json:"status"`
-	ReadingHallID  *uuid.UUID     `json:"reading_hall_id"`
-	ConditionNotes *string        `json:"condition_notes"`
-	CopyID         uuid.UUID      `json:"copy_id"`
+type UpdateBookCopyStatusParams struct {
+	Status NullBookStatus `json:"status"`
+	CopyID uuid.UUID      `json:"copy_id"`
 }
 
-func (q *Queries) UpdateBookCopy(ctx context.Context, arg UpdateBookCopyParams) (*BookCopy, error) {
-	row := q.db.QueryRow(ctx, updateBookCopy,
-		arg.Status,
-		arg.ReadingHallID,
-		arg.ConditionNotes,
-		arg.CopyID,
-	)
-	var i BookCopy
-	err := row.Scan(
-		&i.ID,
-		&i.BookID,
-		&i.CopyCode,
-		&i.Status,
-		&i.ReadingHallID,
-		&i.ConditionNotes,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return &i, err
+func (q *Queries) UpdateBookCopyStatus(ctx context.Context, arg UpdateBookCopyStatusParams) error {
+	_, err := q.db.Exec(ctx, updateBookCopyStatus, arg.Status, arg.CopyID)
+	return err
 }

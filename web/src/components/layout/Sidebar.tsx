@@ -13,6 +13,7 @@ import {
   BookCheck,
   DoorOpen,
   BarChart3,
+  User,
 } from "lucide-react";
 
 const Sidebar: React.FC = () => {
@@ -25,10 +26,14 @@ const Sidebar: React.FC = () => {
   const navItems = [
     { to: "/", icon: <Home size={20} />, label: "Главная" },
     { to: "/books", icon: <BookOpen size={20} />, label: "Книги" },
-    { to: "/members", icon: <Users size={20} />, label: "Читатели" },
-    { to: "/checkout", icon: <BookPlus size={20} />, label: "Выдача" },
-    { to: "/returns", icon: <BookCheck size={20} />, label: "Возврат" },
-    { to: "/room-entry", icon: <DoorOpen size={20} />, label: "Вход в зал" },
+    { to: "/readers", icon: <Users size={20} />, label: "Читатели" },
+    { to: "/checkout", icon: <BookPlus size={20} />, label: "Выдача книг" },
+    { to: "/returns", icon: <BookCheck size={20} />, label: "Возврат книг" },
+    {
+      to: "/room-entry",
+      icon: <DoorOpen size={20} />,
+      label: "Посещения залов",
+    },
     {
       to: "/room-overview",
       icon: <BarChart3 size={20} />,

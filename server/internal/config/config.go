@@ -9,11 +9,9 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// --- Общие структуры ---
-
 type Logger struct {
 	LogFilePath  string        `yaml:"logFilePath"`
-	LoggingLevel zerolog.Level `yaml:"loggingLevel"` // zerolog.Level может быть строкой ("info", "debug") или числом
+	LoggingLevel zerolog.Level `yaml:"loggingLevel"`
 	DevMode      bool          `yaml:"devMode"`
 }
 
@@ -35,31 +33,25 @@ func (db *Database) URL() string {
 type Redis struct {
 	Host     string `yaml:"host"`
 	Port     string `yaml:"port"`
-	Password string `yaml:"password,omitempty"` // Пароль может быть опциональным
+	Password string `yaml:"password,omitempty"`
 }
 
-// --- Конфигурации для сервиса ---
-
-// SessionConfig содержит настройки сессии.
 type SessionConfig struct {
 	Secret     string        `yaml:"secret"`
 	Name       string        `yaml:"name"`
-	TTL        time.Duration `yaml:"ttl"` // go-yaml напрямую парсит строки типа "24h", "30m"
+	TTL        time.Duration `yaml:"ttl"`
 	CookiePath string        `yaml:"cookiePath"`
 	Secure     bool          `yaml:"secure"`
 	HttpOnly   bool          `yaml:"httpOnly"`
-	SameSite   string        `yaml:"sameSite"` // "Lax", "Strict", "None"
+	SameSite   string        `yaml:"sameSite"`
 }
 
-// LibraryServiceConfig содержит настройки для сервиса библиотеки
 type LibraryServiceConfig struct {
 	Port          int            `yaml:"port"`
 	DevMode       bool           `yaml:"devMode"`
 	AllowedOrigin string         `yaml:"allowedOrigin,omitempty"`
 	Session       *SessionConfig `yaml:"session,omitempty"`
 }
-
-// --- Основная структура Config ---
 
 type Config struct {
 	Log     *Logger               `yaml:"logger"`
@@ -68,7 +60,6 @@ type Config struct {
 	Library *LibraryServiceConfig `yaml:"library"`
 }
 
-// Load читает YAML-конфиг, указан­ный в path, и возвращает готовую Config.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -76,12 +67,11 @@ func Load(path string) (*Config, error) {
 	}
 
 	var cfg Config
-	// Строгая проверка конфигурации
+
 	if err := yaml.UnmarshalWithOptions(data, &cfg, yaml.Strict()); err != nil {
 		return nil, fmt.Errorf("parse yaml: %w", err)
 	}
 
-	// Проверка обязательных секций конфигурации
 	if cfg.Log == nil {
 		return nil, fmt.Errorf("logger configuration is missing")
 	}
@@ -92,7 +82,6 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("redis configuration is missing")
 	}
 
-	// Проверка настроек библиотечного сервиса
 	if cfg.Library != nil {
 		if cfg.Library.Port == 0 {
 			return nil, fmt.Errorf("library service port must be configured")

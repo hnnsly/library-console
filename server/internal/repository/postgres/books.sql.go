@@ -7,27 +7,14 @@ package postgres
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/govalues/decimal"
 )
 
-const countBooks = `-- name: CountBooks :one
-SELECT COUNT(*) FROM books
-`
-
-func (q *Queries) CountBooks(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countBooks)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createBook = `-- name: CreateBook :one
-INSERT INTO books (title, isbn, publication_year, publisher, pages, language, description, total_copies, available_copies)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, title, isbn, publication_year, publisher, pages, language, description, total_copies, available_copies, created_at, updated_at
+INSERT INTO books (title, isbn, publication_year, publisher, total_copies, available_copies)
+VALUES ($1, $2, $3, $4, $5, $5)
+RETURNING id, title, isbn, publication_year, publisher, total_copies, available_copies
 `
 
 type CreateBookParams struct {
@@ -35,251 +22,85 @@ type CreateBookParams struct {
 	Isbn            *string `json:"isbn"`
 	PublicationYear *int    `json:"publication_year"`
 	Publisher       *string `json:"publisher"`
-	Pages           *int    `json:"pages"`
-	Language        *string `json:"language"`
-	Description     *string `json:"description"`
 	TotalCopies     int     `json:"total_copies"`
-	AvailableCopies int     `json:"available_copies"`
 }
 
-func (q *Queries) CreateBook(ctx context.Context, arg CreateBookParams) (*Book, error) {
+type CreateBookRow struct {
+	ID              uuid.UUID `json:"id"`
+	Title           string    `json:"title"`
+	Isbn            *string   `json:"isbn"`
+	PublicationYear *int      `json:"publication_year"`
+	Publisher       *string   `json:"publisher"`
+	TotalCopies     int       `json:"total_copies"`
+	AvailableCopies int       `json:"available_copies"`
+}
+
+func (q *Queries) CreateBook(ctx context.Context, arg CreateBookParams) (*CreateBookRow, error) {
 	row := q.db.QueryRow(ctx, createBook,
 		arg.Title,
 		arg.Isbn,
 		arg.PublicationYear,
 		arg.Publisher,
-		arg.Pages,
-		arg.Language,
-		arg.Description,
 		arg.TotalCopies,
-		arg.AvailableCopies,
 	)
-	var i Book
+	var i CreateBookRow
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
 		&i.Isbn,
 		&i.PublicationYear,
 		&i.Publisher,
-		&i.Pages,
-		&i.Language,
-		&i.Description,
 		&i.TotalCopies,
 		&i.AvailableCopies,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return &i, err
 }
 
-const deleteBook = `-- name: DeleteBook :exec
-DELETE FROM books WHERE id = $1
-`
-
-func (q *Queries) DeleteBook(ctx context.Context, bookID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteBook, bookID)
-	return err
-}
-
-const getBookByID = `-- name: GetBookByID :one
-SELECT id, title, isbn, publication_year, publisher, pages, language, description, total_copies, available_copies, created_at, updated_at FROM books WHERE id = $1
-`
-
-func (q *Queries) GetBookByID(ctx context.Context, bookID uuid.UUID) (*Book, error) {
-	row := q.db.QueryRow(ctx, getBookByID, bookID)
-	var i Book
-	err := row.Scan(
-		&i.ID,
-		&i.Title,
-		&i.Isbn,
-		&i.PublicationYear,
-		&i.Publisher,
-		&i.Pages,
-		&i.Language,
-		&i.Description,
-		&i.TotalCopies,
-		&i.AvailableCopies,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return &i, err
-}
-
-const getBookByISBN = `-- name: GetBookByISBN :one
-SELECT id, title, isbn, publication_year, publisher, pages, language, description, total_copies, available_copies, created_at, updated_at FROM books WHERE isbn = $1
-`
-
-func (q *Queries) GetBookByISBN(ctx context.Context, isbn *string) (*Book, error) {
-	row := q.db.QueryRow(ctx, getBookByISBN, isbn)
-	var i Book
-	err := row.Scan(
-		&i.ID,
-		&i.Title,
-		&i.Isbn,
-		&i.PublicationYear,
-		&i.Publisher,
-		&i.Pages,
-		&i.Language,
-		&i.Description,
-		&i.TotalCopies,
-		&i.AvailableCopies,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return &i, err
-}
-
-const getBookWithDetails = `-- name: GetBookWithDetails :one
-SELECT
-    b.id, b.title, b.isbn, b.publication_year, b.publisher, b.pages, b.language, b.description, b.total_copies, b.available_copies, b.created_at, b.updated_at,
-    string_agg(a.full_name, ', ' ORDER BY a.full_name) as authors,
-    COALESCE(ROUND(AVG(br.rating), 2), 0) as avg_rating,
-    COUNT(br.rating) as rating_count
+const getAllBooks = `-- name: GetAllBooks :many
+SELECT DISTINCT
+    b.id,
+    b.title,
+    b.isbn,
+    b.publication_year,
+    b.publisher,
+    b.available_copies,
+    b.total_copies,
+    STRING_AGG(a.full_name, ', ') as authors
 FROM books b
 LEFT JOIN book_authors ba ON b.id = ba.book_id
 LEFT JOIN authors a ON ba.author_id = a.id
-LEFT JOIN book_ratings br ON b.id = br.book_id
-WHERE b.id = $1
-GROUP BY b.id
-`
-
-type GetBookWithDetailsRow struct {
-	ID              uuid.UUID   `json:"id"`
-	Title           string      `json:"title"`
-	Isbn            *string     `json:"isbn"`
-	PublicationYear *int        `json:"publication_year"`
-	Publisher       *string     `json:"publisher"`
-	Pages           *int        `json:"pages"`
-	Language        *string     `json:"language"`
-	Description     *string     `json:"description"`
-	TotalCopies     int         `json:"total_copies"`
-	AvailableCopies int         `json:"available_copies"`
-	CreatedAt       *time.Time  `json:"created_at"`
-	UpdatedAt       *time.Time  `json:"updated_at"`
-	Authors         []byte      `json:"authors"`
-	AvgRating       interface{} `json:"avg_rating"`
-	RatingCount     int64       `json:"rating_count"`
-}
-
-func (q *Queries) GetBookWithDetails(ctx context.Context, bookID uuid.UUID) (*GetBookWithDetailsRow, error) {
-	row := q.db.QueryRow(ctx, getBookWithDetails, bookID)
-	var i GetBookWithDetailsRow
-	err := row.Scan(
-		&i.ID,
-		&i.Title,
-		&i.Isbn,
-		&i.PublicationYear,
-		&i.Publisher,
-		&i.Pages,
-		&i.Language,
-		&i.Description,
-		&i.TotalCopies,
-		&i.AvailableCopies,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Authors,
-		&i.AvgRating,
-		&i.RatingCount,
-	)
-	return &i, err
-}
-
-const getBooksByAuthor = `-- name: GetBooksByAuthor :many
-SELECT b.id, b.title, b.isbn, b.publication_year, b.publisher, b.pages, b.language, b.description, b.total_copies, b.available_copies, b.created_at, b.updated_at
-FROM books b
-JOIN book_authors ba ON b.id = ba.book_id
-WHERE ba.author_id = $1
+GROUP BY b.id, b.title, b.isbn, b.publication_year, b.publisher, b.available_copies, b.total_copies
 ORDER BY b.title
 `
 
-func (q *Queries) GetBooksByAuthor(ctx context.Context, authorID uuid.UUID) ([]*Book, error) {
-	rows, err := q.db.Query(ctx, getBooksByAuthor, authorID)
+type GetAllBooksRow struct {
+	ID              uuid.UUID `json:"id"`
+	Title           string    `json:"title"`
+	Isbn            *string   `json:"isbn"`
+	PublicationYear *int      `json:"publication_year"`
+	Publisher       *string   `json:"publisher"`
+	AvailableCopies int       `json:"available_copies"`
+	TotalCopies     int       `json:"total_copies"`
+	Authors         []byte    `json:"authors"`
+}
+
+func (q *Queries) GetAllBooks(ctx context.Context) ([]*GetAllBooksRow, error) {
+	rows, err := q.db.Query(ctx, getAllBooks)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*Book{}
+	items := []*GetAllBooksRow{}
 	for rows.Next() {
-		var i Book
+		var i GetAllBooksRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
 			&i.Isbn,
 			&i.PublicationYear,
 			&i.Publisher,
-			&i.Pages,
-			&i.Language,
-			&i.Description,
-			&i.TotalCopies,
 			&i.AvailableCopies,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getBooksWithAuthors = `-- name: GetBooksWithAuthors :many
-SELECT
-    b.id, b.title, b.isbn, b.publication_year, b.publisher, b.pages, b.language, b.description, b.total_copies, b.available_copies, b.created_at, b.updated_at,
-    string_agg(a.full_name, ', ' ORDER BY a.full_name) as authors
-FROM books b
-LEFT JOIN book_authors ba ON b.id = ba.book_id
-LEFT JOIN authors a ON ba.author_id = a.id
-GROUP BY b.id, b.title, b.isbn, b.publication_year, b.publisher, b.pages, b.language, b.description, b.total_copies, b.available_copies, b.created_at, b.updated_at
-ORDER BY b.created_at DESC
-LIMIT $2 OFFSET $1
-`
-
-type GetBooksWithAuthorsParams struct {
-	OffsetVal int32 `json:"offset_val"`
-	LimitVal  int32 `json:"limit_val"`
-}
-
-type GetBooksWithAuthorsRow struct {
-	ID              uuid.UUID  `json:"id"`
-	Title           string     `json:"title"`
-	Isbn            *string    `json:"isbn"`
-	PublicationYear *int       `json:"publication_year"`
-	Publisher       *string    `json:"publisher"`
-	Pages           *int       `json:"pages"`
-	Language        *string    `json:"language"`
-	Description     *string    `json:"description"`
-	TotalCopies     int        `json:"total_copies"`
-	AvailableCopies int        `json:"available_copies"`
-	CreatedAt       *time.Time `json:"created_at"`
-	UpdatedAt       *time.Time `json:"updated_at"`
-	Authors         []byte     `json:"authors"`
-}
-
-func (q *Queries) GetBooksWithAuthors(ctx context.Context, arg GetBooksWithAuthorsParams) ([]*GetBooksWithAuthorsRow, error) {
-	rows, err := q.db.Query(ctx, getBooksWithAuthors, arg.OffsetVal, arg.LimitVal)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []*GetBooksWithAuthorsRow{}
-	for rows.Next() {
-		var i GetBooksWithAuthorsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Title,
-			&i.Isbn,
-			&i.PublicationYear,
-			&i.Publisher,
-			&i.Pages,
-			&i.Language,
-			&i.Description,
 			&i.TotalCopies,
-			&i.AvailableCopies,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.Authors,
 		); err != nil {
 			return nil, err
@@ -292,153 +113,93 @@ func (q *Queries) GetBooksWithAuthors(ctx context.Context, arg GetBooksWithAutho
 	return items, nil
 }
 
-const getTopRatedBooks = `-- name: GetTopRatedBooks :many
-SELECT
-    b.id, b.title, b.isbn, b.publication_year, b.publisher, b.pages, b.language, b.description, b.total_copies, b.available_copies, b.created_at, b.updated_at,
-    string_agg(a.full_name, ', ' ORDER BY a.full_name) as authors,
-    ROUND(AVG(br.rating), 2) as avg_rating,
-    COUNT(br.rating) as rating_count
+const getBookById = `-- name: GetBookById :one
+SELECT id, title, isbn, publication_year, publisher, total_copies, available_copies
+FROM books
+WHERE id = $1
+`
+
+type GetBookByIdRow struct {
+	ID              uuid.UUID `json:"id"`
+	Title           string    `json:"title"`
+	Isbn            *string   `json:"isbn"`
+	PublicationYear *int      `json:"publication_year"`
+	Publisher       *string   `json:"publisher"`
+	TotalCopies     int       `json:"total_copies"`
+	AvailableCopies int       `json:"available_copies"`
+}
+
+func (q *Queries) GetBookById(ctx context.Context, id uuid.UUID) (*GetBookByIdRow, error) {
+	row := q.db.QueryRow(ctx, getBookById, id)
+	var i GetBookByIdRow
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Isbn,
+		&i.PublicationYear,
+		&i.Publisher,
+		&i.TotalCopies,
+		&i.AvailableCopies,
+	)
+	return &i, err
+}
+
+const searchBooks = `-- name: SearchBooks :many
+SELECT DISTINCT
+    b.id,
+    b.title,
+    b.isbn,
+    b.publication_year,
+    b.publisher,
+    b.available_copies,
+    b.total_copies,
+    STRING_AGG(a.full_name, ', ') as authors
 FROM books b
 LEFT JOIN book_authors ba ON b.id = ba.book_id
 LEFT JOIN authors a ON ba.author_id = a.id
-JOIN book_ratings br ON b.id = br.book_id
-GROUP BY b.id
-HAVING COUNT(br.rating) >= $1
-ORDER BY AVG(br.rating) DESC, COUNT(br.rating) DESC
-LIMIT $2
+WHERE
+    ($1::text IS NULL OR b.title ILIKE '%' || $1 || '%') AND
+    ($2::text IS NULL OR a.full_name ILIKE '%' || $2 || '%') AND
+    ($3::int IS NULL OR b.publication_year = $3)
+GROUP BY b.id, b.title, b.isbn, b.publication_year, b.publisher, b.available_copies, b.total_copies
+ORDER BY b.title
 `
 
-type GetTopRatedBooksParams struct {
-	MinRatings int   `json:"min_ratings"`
-	LimitVal   int32 `json:"limit_val"`
+type SearchBooksParams struct {
+	Title           string `json:"title"`
+	Author          string `json:"author"`
+	PublicationYear int    `json:"publication_year"`
 }
 
-type GetTopRatedBooksRow struct {
-	ID              uuid.UUID       `json:"id"`
-	Title           string          `json:"title"`
-	Isbn            *string         `json:"isbn"`
-	PublicationYear *int            `json:"publication_year"`
-	Publisher       *string         `json:"publisher"`
-	Pages           *int            `json:"pages"`
-	Language        *string         `json:"language"`
-	Description     *string         `json:"description"`
-	TotalCopies     int             `json:"total_copies"`
-	AvailableCopies int             `json:"available_copies"`
-	CreatedAt       *time.Time      `json:"created_at"`
-	UpdatedAt       *time.Time      `json:"updated_at"`
-	Authors         []byte          `json:"authors"`
-	AvgRating       decimal.Decimal `json:"avg_rating"`
-	RatingCount     int64           `json:"rating_count"`
+type SearchBooksRow struct {
+	ID              uuid.UUID `json:"id"`
+	Title           string    `json:"title"`
+	Isbn            *string   `json:"isbn"`
+	PublicationYear *int      `json:"publication_year"`
+	Publisher       *string   `json:"publisher"`
+	AvailableCopies int       `json:"available_copies"`
+	TotalCopies     int       `json:"total_copies"`
+	Authors         []byte    `json:"authors"`
 }
 
-func (q *Queries) GetTopRatedBooks(ctx context.Context, arg GetTopRatedBooksParams) ([]*GetTopRatedBooksRow, error) {
-	rows, err := q.db.Query(ctx, getTopRatedBooks, arg.MinRatings, arg.LimitVal)
+func (q *Queries) SearchBooks(ctx context.Context, arg SearchBooksParams) ([]*SearchBooksRow, error) {
+	rows, err := q.db.Query(ctx, searchBooks, arg.Title, arg.Author, arg.PublicationYear)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*GetTopRatedBooksRow{}
+	items := []*SearchBooksRow{}
 	for rows.Next() {
-		var i GetTopRatedBooksRow
+		var i SearchBooksRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
 			&i.Isbn,
 			&i.PublicationYear,
 			&i.Publisher,
-			&i.Pages,
-			&i.Language,
-			&i.Description,
-			&i.TotalCopies,
 			&i.AvailableCopies,
-			&i.CreatedAt,
-			&i.UpdatedAt,
+			&i.TotalCopies,
 			&i.Authors,
-			&i.AvgRating,
-			&i.RatingCount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listBooks = `-- name: ListBooks :many
-SELECT id, title, isbn, publication_year, publisher, pages, language, description, total_copies, available_copies, created_at, updated_at FROM books
-ORDER BY created_at DESC
-LIMIT $2 OFFSET $1
-`
-
-type ListBooksParams struct {
-	OffsetVal int32 `json:"offset_val"`
-	LimitVal  int32 `json:"limit_val"`
-}
-
-func (q *Queries) ListBooks(ctx context.Context, arg ListBooksParams) ([]*Book, error) {
-	rows, err := q.db.Query(ctx, listBooks, arg.OffsetVal, arg.LimitVal)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []*Book{}
-	for rows.Next() {
-		var i Book
-		if err := rows.Scan(
-			&i.ID,
-			&i.Title,
-			&i.Isbn,
-			&i.PublicationYear,
-			&i.Publisher,
-			&i.Pages,
-			&i.Language,
-			&i.Description,
-			&i.TotalCopies,
-			&i.AvailableCopies,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const searchBooksByTitle = `-- name: SearchBooksByTitle :many
-SELECT id, title, isbn, publication_year, publisher, pages, language, description, total_copies, available_copies, created_at, updated_at FROM books
-WHERE to_tsvector('russian', title) @@ plainto_tsquery('russian', $1)
-ORDER BY title
-`
-
-func (q *Queries) SearchBooksByTitle(ctx context.Context, searchQuery string) ([]*Book, error) {
-	rows, err := q.db.Query(ctx, searchBooksByTitle, searchQuery)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []*Book{}
-	for rows.Next() {
-		var i Book
-		if err := rows.Scan(
-			&i.ID,
-			&i.Title,
-			&i.Isbn,
-			&i.PublicationYear,
-			&i.Publisher,
-			&i.Pages,
-			&i.Language,
-			&i.Description,
-			&i.TotalCopies,
-			&i.AvailableCopies,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -452,19 +213,9 @@ func (q *Queries) SearchBooksByTitle(ctx context.Context, searchQuery string) ([
 
 const updateBook = `-- name: UpdateBook :one
 UPDATE books
-SET
-    title = COALESCE($1, title),
-    isbn = COALESCE($2, isbn),
-    publication_year = COALESCE($3, publication_year),
-    publisher = COALESCE($4, publisher),
-    pages = COALESCE($5, pages),
-    language = COALESCE($6, language),
-    description = COALESCE($7, description),
-    total_copies = COALESCE($8, total_copies),
-    available_copies = COALESCE($9, available_copies),
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = $10
-RETURNING id, title, isbn, publication_year, publisher, pages, language, description, total_copies, available_copies, created_at, updated_at
+SET title = $1, isbn = $2, publication_year = $3, publisher = $4
+WHERE id = $5
+RETURNING id, title, isbn, publication_year, publisher, total_copies, available_copies
 `
 
 type UpdateBookParams struct {
@@ -472,57 +223,52 @@ type UpdateBookParams struct {
 	Isbn            *string   `json:"isbn"`
 	PublicationYear *int      `json:"publication_year"`
 	Publisher       *string   `json:"publisher"`
-	Pages           *int      `json:"pages"`
-	Language        *string   `json:"language"`
-	Description     *string   `json:"description"`
-	TotalCopies     int       `json:"total_copies"`
-	AvailableCopies int       `json:"available_copies"`
-	BookID          uuid.UUID `json:"book_id"`
+	ID              uuid.UUID `json:"id"`
 }
 
-func (q *Queries) UpdateBook(ctx context.Context, arg UpdateBookParams) (*Book, error) {
+type UpdateBookRow struct {
+	ID              uuid.UUID `json:"id"`
+	Title           string    `json:"title"`
+	Isbn            *string   `json:"isbn"`
+	PublicationYear *int      `json:"publication_year"`
+	Publisher       *string   `json:"publisher"`
+	TotalCopies     int       `json:"total_copies"`
+	AvailableCopies int       `json:"available_copies"`
+}
+
+func (q *Queries) UpdateBook(ctx context.Context, arg UpdateBookParams) (*UpdateBookRow, error) {
 	row := q.db.QueryRow(ctx, updateBook,
 		arg.Title,
 		arg.Isbn,
 		arg.PublicationYear,
 		arg.Publisher,
-		arg.Pages,
-		arg.Language,
-		arg.Description,
-		arg.TotalCopies,
-		arg.AvailableCopies,
-		arg.BookID,
+		arg.ID,
 	)
-	var i Book
+	var i UpdateBookRow
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
 		&i.Isbn,
 		&i.PublicationYear,
 		&i.Publisher,
-		&i.Pages,
-		&i.Language,
-		&i.Description,
 		&i.TotalCopies,
 		&i.AvailableCopies,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return &i, err
 }
 
-const updateBookAvailability = `-- name: UpdateBookAvailability :exec
+const updateBookCopies = `-- name: UpdateBookCopies :exec
 UPDATE books
-SET available_copies = $1, updated_at = CURRENT_TIMESTAMP
+SET available_copies = available_copies + $1
 WHERE id = $2
 `
 
-type UpdateBookAvailabilityParams struct {
-	AvailableCopies int       `json:"available_copies"`
-	BookID          uuid.UUID `json:"book_id"`
+type UpdateBookCopiesParams struct {
+	Change int       `json:"change"`
+	BookID uuid.UUID `json:"book_id"`
 }
 
-func (q *Queries) UpdateBookAvailability(ctx context.Context, arg UpdateBookAvailabilityParams) error {
-	_, err := q.db.Exec(ctx, updateBookAvailability, arg.AvailableCopies, arg.BookID)
+func (q *Queries) UpdateBookCopies(ctx context.Context, arg UpdateBookCopiesParams) error {
+	_, err := q.db.Exec(ctx, updateBookCopies, arg.Change, arg.BookID)
 	return err
 }

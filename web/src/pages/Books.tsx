@@ -1,34 +1,31 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Search, PlusCircle, Check, X } from "lucide-react";
-import { books } from "../data/mockData";
-import { Book } from "../types";
+import { Search, PlusCircle, Check, X, Book } from "lucide-react";
+import { booksWithDetails } from "../data/mockData";
+import type { BookWithDetails } from "../types";
 
 const Books: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedGenre, setSelectedGenre] = useState<string>("");
   const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  // Get unique genres from all books
-  const allGenres = [...new Set(books.flatMap((book) => book.genre))].sort();
-
   // Filter books based on search term and filters
-  const filteredBooks = books.filter((book) => {
+  const filteredBooks = booksWithDetails.filter((book) => {
+    const authorNames = book.authors
+      .map((author) => author.full_name)
+      .join(" ");
+
     const matchesSearch =
       book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      book.isbn.includes(searchTerm);
+      authorNames.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (book.isbn && book.isbn.includes(searchTerm));
 
-    const matchesGenre = selectedGenre
-      ? book.genre.includes(selectedGenre)
-      : true;
     const matchesStatus = selectedStatus
-      ? book.status === selectedStatus
+      ? getBookStatus(book) === selectedStatus
       : true;
 
-    return matchesSearch && matchesGenre && matchesStatus;
+    return matchesSearch && matchesStatus;
   });
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,24 +33,8 @@ const Books: React.FC = () => {
   };
 
   const clearFilters = () => {
-    setSelectedGenre("");
     setSelectedStatus("");
   };
-
-  // const cardVariants = {
-  //   hidden: { opacity: 0, y: 20 },
-  //   visible: {
-  //     opacity: 1,
-  //     y: 0,
-  //     transition: { type: "spring", stiffness: 300, damping: 24 },
-  //   },
-  //   hover: {
-  //     y: -5,
-  //     boxShadow:
-  //       "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-  //     transition: { type: "spring", stiffness: 300, damping: 24 },
-  //   },
-  // };
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -63,6 +44,12 @@ const Books: React.FC = () => {
         staggerChildren: 0.05,
       },
     },
+  };
+
+  // Helper function to get book status based on available copies
+  const getBookStatus = (book: BookWithDetails): string => {
+    if (book.available_copies === 0) return "unavailable";
+    return "available";
   };
 
   return (
@@ -102,29 +89,13 @@ const Books: React.FC = () => {
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-3">
             <select
-              value={selectedGenre}
-              onChange={(e) => setSelectedGenre(e.target.value)}
-              className="input py-2"
-            >
-              <option value="">Все жанры</option>
-              {allGenres.map((genre) => (
-                <option key={genre} value={genre}>
-                  {genre}
-                </option>
-              ))}
-            </select>
-
-            <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
               className="input py-2"
             >
               <option value="">Все статусы</option>
               <option value="available">Доступно</option>
-              <option value="checked-out">Выдано</option>
-              <option value="reserved">Забронировано</option>
-              <option value="lost">Утеряно</option>
-              <option value="damaged">Повреждено</option>
+              <option value="unavailable">Недоступно</option>
             </select>
           </div>
 
@@ -146,31 +117,18 @@ const Books: React.FC = () => {
         </div>
 
         {/* Active filters */}
-        {(selectedGenre || selectedStatus) && (
+        {selectedStatus && (
           <div className="mt-3 flex items-center">
             <span className="text-sm text-gray-600 mr-2">
               Активные фильтры:
             </span>
             <div className="flex flex-wrap gap-2">
-              {selectedGenre && (
-                <div className="flex items-center bg-primary-100 text-primary-800 text-sm rounded-full px-3 py-1">
-                  <span>Жанр: {selectedGenre}</span>
-                  <button onClick={() => setSelectedGenre("")} className="ml-2">
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
-              {selectedStatus && (
-                <div className="flex items-center bg-primary-100 text-primary-800 text-sm rounded-full px-3 py-1">
-                  <span>Статус: {getStatusText(selectedStatus)}</span>
-                  <button
-                    onClick={() => setSelectedStatus("")}
-                    className="ml-2"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center bg-primary-100 text-primary-800 text-sm rounded-full px-3 py-1">
+                <span>Статус: {getStatusText(selectedStatus)}</span>
+                <button onClick={() => setSelectedStatus("")} className="ml-2">
+                  <X size={14} />
+                </button>
+              </div>
               <button
                 onClick={clearFilters}
                 className="text-sm text-primary-600 hover:underline"
@@ -205,10 +163,13 @@ const Books: React.FC = () => {
                       Название
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Автор
+                      Автор(ы)
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Жанр
+                      Год издания
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Издательство
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Статус
@@ -224,25 +185,35 @@ const Books: React.FC = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredBooks.map((book) => (
                     <tr key={book.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4">
                         <Link
                           to={`/books/${book.id}`}
                           className="text-primary-600 hover:underline font-medium"
                         >
                           {book.title}
                         </Link>
+                        {book.isbn && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            ISBN: {book.isbn}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-gray-700">
+                        {book.authors
+                          .map((author) => author.full_name)
+                          .join(", ")}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-700">
-                        {book.author}
+                        {book.publication_year || "—"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-700">
-                        {book.genre[0]}
+                      <td className="px-6 py-4 text-gray-700">
+                        {book.publisher || "—"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <StatusBadge status={book.status} />
+                        <StatusBadge book={book} />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-700">
-                        {book.availableCopies}/{book.totalCopies}
+                        {book.available_copies}/{book.total_copies}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <Link
@@ -286,16 +257,13 @@ const Books: React.FC = () => {
 const getStatusText = (status: string): string => {
   const statusMap: { [key: string]: string } = {
     available: "Доступно",
-    "checked-out": "Выдано",
-    reserved: "Забронировано",
-    lost: "Утеряно",
-    damaged: "Повреждено",
+    unavailable: "Недоступно",
   };
   return statusMap[status] || status;
 };
 
 // Book Card Component
-const BookCard: React.FC<{ book: Book }> = ({ book }) => {
+const BookCard: React.FC<{ book: BookWithDetails }> = ({ book }) => {
   const cardVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: {
@@ -317,39 +285,31 @@ const BookCard: React.FC<{ book: Book }> = ({ book }) => {
       whileHover="hover"
       className="card overflow-hidden flex flex-col h-full"
     >
-      <div className="relative h-48 overflow-hidden">
-        <img
-          src={book.coverImage}
-          alt={book.title}
-          className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-        />
+      <div className="relative h-32 bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
+        <Book size={48} className="text-primary-400" />
         <div className="absolute top-2 right-2">
-          <StatusBadge status={book.status} />
+          <StatusBadge book={book} />
         </div>
       </div>
       <div className="p-4 flex flex-col flex-grow">
         <Link to={`/books/${book.id}`} className="hover:underline">
-          <h3 className="font-medium text-lg line-clamp-1">{book.title}</h3>
+          <h3 className="font-medium text-lg line-clamp-2 mb-2">
+            {book.title}
+          </h3>
         </Link>
-        <p className="text-gray-600 mb-2">{book.author}</p>
-        <div className="flex flex-wrap gap-1 mb-3">
-          {book.genre.slice(0, 2).map((genre, index) => (
-            <span
-              key={index}
-              className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full"
-            >
-              {genre}
-            </span>
-          ))}
-          {book.genre.length > 2 && (
-            <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
-              +{book.genre.length - 2}
-            </span>
-          )}
+        <p className="text-gray-600 mb-2 text-sm">
+          {book.authors.map((author) => author.full_name).join(", ")}
+        </p>
+
+        <div className="text-xs text-gray-500 space-y-1 mb-3">
+          {book.publication_year && <p>Год: {book.publication_year}</p>}
+          {book.publisher && <p>Издательство: {book.publisher}</p>}
+          {book.isbn && <p>ISBN: {book.isbn}</p>}
         </div>
+
         <div className="mt-auto flex items-center justify-between">
           <span className="text-sm text-gray-600">
-            {book.availableCopies}/{book.totalCopies} экз.
+            {book.available_copies}/{book.total_copies} экз.
           </span>
           <Link
             to={`/books/${book.id}`}
@@ -364,46 +324,26 @@ const BookCard: React.FC<{ book: Book }> = ({ book }) => {
 };
 
 // Status Badge Component
-const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
+const StatusBadge: React.FC<{ book: BookWithDetails }> = ({ book }) => {
+  const isAvailable = book.available_copies > 0;
+
   let bgColor, textColor, text;
 
-  switch (status) {
-    case "available":
-      bgColor = "bg-green-100";
-      textColor = "text-green-800";
-      text = "Доступно";
-      break;
-    case "checked-out":
-      bgColor = "bg-blue-100";
-      textColor = "text-blue-800";
-      text = "Выдано";
-      break;
-    case "reserved":
-      bgColor = "bg-purple-100";
-      textColor = "text-purple-800";
-      text = "Забронировано";
-      break;
-    case "lost":
-      bgColor = "bg-red-100";
-      textColor = "text-red-800";
-      text = "Утеряно";
-      break;
-    case "damaged":
-      bgColor = "bg-orange-100";
-      textColor = "text-orange-800";
-      text = "Повреждено";
-      break;
-    default:
-      bgColor = "bg-gray-100";
-      textColor = "text-gray-800";
-      text = status;
+  if (isAvailable) {
+    bgColor = "bg-green-100";
+    textColor = "text-green-800";
+    text = "Доступно";
+  } else {
+    bgColor = "bg-red-100";
+    textColor = "text-red-800";
+    text = "Недоступно";
   }
 
   return (
     <span
       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bgColor} ${textColor}`}
     >
-      {status === "available" && <Check size={12} className="mr-1" />}
+      {isAvailable && <Check size={12} className="mr-1" />}
       {text}
     </span>
   );

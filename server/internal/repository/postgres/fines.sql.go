@@ -14,9 +14,9 @@ import (
 )
 
 const createFine = `-- name: CreateFine :one
-INSERT INTO fines (reader_id, book_issue_id, amount, reason, fine_date, librarian_id)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, reader_id, book_issue_id, amount, reason, fine_date, paid_date, paid_amount, is_paid, librarian_id, created_at, updated_at
+INSERT INTO fines (reader_id, book_issue_id, amount, reason)
+VALUES ($1, $2, $3, $4)
+RETURNING id, fine_date, amount, reason
 `
 
 type CreateFineParams struct {
@@ -24,261 +24,64 @@ type CreateFineParams struct {
 	BookIssueID *uuid.UUID      `json:"book_issue_id"`
 	Amount      decimal.Decimal `json:"amount"`
 	Reason      string          `json:"reason"`
-	FineDate    *time.Time      `json:"fine_date"`
-	LibrarianID *uuid.UUID      `json:"librarian_id"`
 }
 
-func (q *Queries) CreateFine(ctx context.Context, arg CreateFineParams) (*Fine, error) {
+type CreateFineRow struct {
+	ID       uuid.UUID       `json:"id"`
+	FineDate *time.Time      `json:"fine_date"`
+	Amount   decimal.Decimal `json:"amount"`
+	Reason   string          `json:"reason"`
+}
+
+func (q *Queries) CreateFine(ctx context.Context, arg CreateFineParams) (*CreateFineRow, error) {
 	row := q.db.QueryRow(ctx, createFine,
 		arg.ReaderID,
 		arg.BookIssueID,
 		arg.Amount,
 		arg.Reason,
-		arg.FineDate,
-		arg.LibrarianID,
 	)
-	var i Fine
+	var i CreateFineRow
 	err := row.Scan(
 		&i.ID,
-		&i.ReaderID,
-		&i.BookIssueID,
+		&i.FineDate,
 		&i.Amount,
 		&i.Reason,
-		&i.FineDate,
-		&i.PaidDate,
-		&i.PaidAmount,
-		&i.IsPaid,
-		&i.LibrarianID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return &i, err
 }
 
-const deleteFine = `-- name: DeleteFine :exec
-DELETE FROM fines WHERE id = $1
-`
-
-func (q *Queries) DeleteFine(ctx context.Context, fineID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteFine, fineID)
-	return err
-}
-
-const getAllUnpaidFines = `-- name: GetAllUnpaidFines :many
-SELECT
-    f.id, f.reader_id, f.book_issue_id, f.amount, f.reason, f.fine_date, f.paid_date, f.paid_amount, f.is_paid, f.librarian_id, f.created_at, f.updated_at,
-    r.full_name as reader_name,
-    r.ticket_number,
-    b.title as book_title
-FROM fines f
-JOIN readers r ON f.reader_id = r.id
-LEFT JOIN book_issues bi ON f.book_issue_id = bi.id
-LEFT JOIN book_copies bc ON bi.book_copy_id = bc.id
-LEFT JOIN books b ON bc.book_id = b.id
-WHERE f.is_paid = false
-ORDER BY f.fine_date
-`
-
-type GetAllUnpaidFinesRow struct {
-	ID           uuid.UUID       `json:"id"`
-	ReaderID     uuid.UUID       `json:"reader_id"`
-	BookIssueID  *uuid.UUID      `json:"book_issue_id"`
-	Amount       decimal.Decimal `json:"amount"`
-	Reason       string          `json:"reason"`
-	FineDate     *time.Time      `json:"fine_date"`
-	PaidDate     *time.Time      `json:"paid_date"`
-	PaidAmount   decimal.Decimal `json:"paid_amount"`
-	IsPaid       *bool           `json:"is_paid"`
-	LibrarianID  *uuid.UUID      `json:"librarian_id"`
-	CreatedAt    *time.Time      `json:"created_at"`
-	UpdatedAt    *time.Time      `json:"updated_at"`
-	ReaderName   string          `json:"reader_name"`
-	TicketNumber string          `json:"ticket_number"`
-	BookTitle    *string         `json:"book_title"`
-}
-
-func (q *Queries) GetAllUnpaidFines(ctx context.Context) ([]*GetAllUnpaidFinesRow, error) {
-	rows, err := q.db.Query(ctx, getAllUnpaidFines)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []*GetAllUnpaidFinesRow{}
-	for rows.Next() {
-		var i GetAllUnpaidFinesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.ReaderID,
-			&i.BookIssueID,
-			&i.Amount,
-			&i.Reason,
-			&i.FineDate,
-			&i.PaidDate,
-			&i.PaidAmount,
-			&i.IsPaid,
-			&i.LibrarianID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ReaderName,
-			&i.TicketNumber,
-			&i.BookTitle,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getFineByID = `-- name: GetFineByID :one
-SELECT
-    f.id, f.reader_id, f.book_issue_id, f.amount, f.reason, f.fine_date, f.paid_date, f.paid_amount, f.is_paid, f.librarian_id, f.created_at, f.updated_at,
-    r.full_name as reader_name,
-    r.ticket_number,
-    u.username as librarian_name
-FROM fines f
-JOIN readers r ON f.reader_id = r.id
-LEFT JOIN users u ON f.librarian_id = u.id
-WHERE f.id = $1
-`
-
-type GetFineByIDRow struct {
-	ID            uuid.UUID       `json:"id"`
-	ReaderID      uuid.UUID       `json:"reader_id"`
-	BookIssueID   *uuid.UUID      `json:"book_issue_id"`
-	Amount        decimal.Decimal `json:"amount"`
-	Reason        string          `json:"reason"`
-	FineDate      *time.Time      `json:"fine_date"`
-	PaidDate      *time.Time      `json:"paid_date"`
-	PaidAmount    decimal.Decimal `json:"paid_amount"`
-	IsPaid        *bool           `json:"is_paid"`
-	LibrarianID   *uuid.UUID      `json:"librarian_id"`
-	CreatedAt     *time.Time      `json:"created_at"`
-	UpdatedAt     *time.Time      `json:"updated_at"`
-	ReaderName    string          `json:"reader_name"`
-	TicketNumber  string          `json:"ticket_number"`
-	LibrarianName *string         `json:"librarian_name"`
-}
-
-func (q *Queries) GetFineByID(ctx context.Context, fineID uuid.UUID) (*GetFineByIDRow, error) {
-	row := q.db.QueryRow(ctx, getFineByID, fineID)
-	var i GetFineByIDRow
-	err := row.Scan(
-		&i.ID,
-		&i.ReaderID,
-		&i.BookIssueID,
-		&i.Amount,
-		&i.Reason,
-		&i.FineDate,
-		&i.PaidDate,
-		&i.PaidAmount,
-		&i.IsPaid,
-		&i.LibrarianID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ReaderName,
-		&i.TicketNumber,
-		&i.LibrarianName,
-	)
-	return &i, err
-}
-
-const getFineStatistics = `-- name: GetFineStatistics :one
-SELECT
-    COUNT(*) as total_fines,
-    COUNT(CASE WHEN is_paid THEN 1 END) as paid_fines,
-    COUNT(CASE WHEN NOT is_paid THEN 1 END) as unpaid_fines,
-    COALESCE(SUM(amount), 0) as total_amount,
-    COALESCE(SUM(paid_amount), 0) as total_paid,
-    COALESCE(SUM(CASE WHEN NOT is_paid THEN amount - paid_amount ELSE 0 END), 0) as total_debt
+const getReaderFines = `-- name: GetReaderFines :many
+SELECT id, amount, reason, fine_date, paid_date, is_paid
 FROM fines
-WHERE fine_date >= $1 AND fine_date <= $2
+WHERE reader_id = $1
+ORDER BY fine_date DESC
 `
 
-type GetFineStatisticsParams struct {
-	FromDate *time.Time `json:"from_date"`
-	ToDate   *time.Time `json:"to_date"`
+type GetReaderFinesRow struct {
+	ID       uuid.UUID       `json:"id"`
+	Amount   decimal.Decimal `json:"amount"`
+	Reason   string          `json:"reason"`
+	FineDate *time.Time      `json:"fine_date"`
+	PaidDate *time.Time      `json:"paid_date"`
+	IsPaid   *bool           `json:"is_paid"`
 }
 
-type GetFineStatisticsRow struct {
-	TotalFines  int64       `json:"total_fines"`
-	PaidFines   int64       `json:"paid_fines"`
-	UnpaidFines int64       `json:"unpaid_fines"`
-	TotalAmount interface{} `json:"total_amount"`
-	TotalPaid   interface{} `json:"total_paid"`
-	TotalDebt   interface{} `json:"total_debt"`
-}
-
-func (q *Queries) GetFineStatistics(ctx context.Context, arg GetFineStatisticsParams) (*GetFineStatisticsRow, error) {
-	row := q.db.QueryRow(ctx, getFineStatistics, arg.FromDate, arg.ToDate)
-	var i GetFineStatisticsRow
-	err := row.Scan(
-		&i.TotalFines,
-		&i.PaidFines,
-		&i.UnpaidFines,
-		&i.TotalAmount,
-		&i.TotalPaid,
-		&i.TotalDebt,
-	)
-	return &i, err
-}
-
-const getFinesByReader = `-- name: GetFinesByReader :many
-SELECT f.id, f.reader_id, f.book_issue_id, f.amount, f.reason, f.fine_date, f.paid_date, f.paid_amount, f.is_paid, f.librarian_id, f.created_at, f.updated_at, bi.issue_date, bi.due_date, b.title as book_title
-FROM fines f
-LEFT JOIN book_issues bi ON f.book_issue_id = bi.id
-LEFT JOIN book_copies bc ON bi.book_copy_id = bc.id
-LEFT JOIN books b ON bc.book_id = b.id
-WHERE f.reader_id = $1
-ORDER BY f.created_at DESC
-`
-
-type GetFinesByReaderRow struct {
-	ID          uuid.UUID       `json:"id"`
-	ReaderID    uuid.UUID       `json:"reader_id"`
-	BookIssueID *uuid.UUID      `json:"book_issue_id"`
-	Amount      decimal.Decimal `json:"amount"`
-	Reason      string          `json:"reason"`
-	FineDate    *time.Time      `json:"fine_date"`
-	PaidDate    *time.Time      `json:"paid_date"`
-	PaidAmount  decimal.Decimal `json:"paid_amount"`
-	IsPaid      *bool           `json:"is_paid"`
-	LibrarianID *uuid.UUID      `json:"librarian_id"`
-	CreatedAt   *time.Time      `json:"created_at"`
-	UpdatedAt   *time.Time      `json:"updated_at"`
-	IssueDate   *time.Time      `json:"issue_date"`
-	DueDate     *time.Time      `json:"due_date"`
-	BookTitle   *string         `json:"book_title"`
-}
-
-func (q *Queries) GetFinesByReader(ctx context.Context, readerID uuid.UUID) ([]*GetFinesByReaderRow, error) {
-	rows, err := q.db.Query(ctx, getFinesByReader, readerID)
+func (q *Queries) GetReaderFines(ctx context.Context, readerID uuid.UUID) ([]*GetReaderFinesRow, error) {
+	rows, err := q.db.Query(ctx, getReaderFines, readerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*GetFinesByReaderRow{}
+	items := []*GetReaderFinesRow{}
 	for rows.Next() {
-		var i GetFinesByReaderRow
+		var i GetReaderFinesRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.ReaderID,
-			&i.BookIssueID,
 			&i.Amount,
 			&i.Reason,
 			&i.FineDate,
 			&i.PaidDate,
-			&i.PaidAmount,
 			&i.IsPaid,
-			&i.LibrarianID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.IssueDate,
-			&i.DueDate,
-			&i.BookTitle,
 		); err != nil {
 			return nil, err
 		}
@@ -290,72 +93,58 @@ func (q *Queries) GetFinesByReader(ctx context.Context, readerID uuid.UUID) ([]*
 	return items, nil
 }
 
-const getTotalDebtByReader = `-- name: GetTotalDebtByReader :one
-SELECT COALESCE(SUM(amount - paid_amount), 0) as total_debt
+const getReaderUnpaidFinesTotal = `-- name: GetReaderUnpaidFinesTotal :one
+SELECT COALESCE(SUM(amount), 0) as total_unpaid
 FROM fines
 WHERE reader_id = $1 AND is_paid = false
 `
 
-func (q *Queries) GetTotalDebtByReader(ctx context.Context, readerID uuid.UUID) (interface{}, error) {
-	row := q.db.QueryRow(ctx, getTotalDebtByReader, readerID)
-	var total_debt interface{}
-	err := row.Scan(&total_debt)
-	return total_debt, err
+func (q *Queries) GetReaderUnpaidFinesTotal(ctx context.Context, readerID uuid.UUID) (interface{}, error) {
+	row := q.db.QueryRow(ctx, getReaderUnpaidFinesTotal, readerID)
+	var total_unpaid interface{}
+	err := row.Scan(&total_unpaid)
+	return total_unpaid, err
 }
 
-const getUnpaidFinesByReader = `-- name: GetUnpaidFinesByReader :many
-SELECT f.id, f.reader_id, f.book_issue_id, f.amount, f.reason, f.fine_date, f.paid_date, f.paid_amount, f.is_paid, f.librarian_id, f.created_at, f.updated_at, bi.issue_date, bi.due_date, b.title as book_title
+const getUnpaidFines = `-- name: GetUnpaidFines :many
+SELECT
+    f.id,
+    r.ticket_number,
+    r.full_name as reader_name,
+    f.amount,
+    f.reason,
+    f.fine_date
 FROM fines f
-LEFT JOIN book_issues bi ON f.book_issue_id = bi.id
-LEFT JOIN book_copies bc ON bi.book_copy_id = bc.id
-LEFT JOIN books b ON bc.book_id = b.id
-WHERE f.reader_id = $1 AND f.is_paid = false
+JOIN readers r ON f.reader_id = r.id
+WHERE f.is_paid = false
 ORDER BY f.fine_date
 `
 
-type GetUnpaidFinesByReaderRow struct {
-	ID          uuid.UUID       `json:"id"`
-	ReaderID    uuid.UUID       `json:"reader_id"`
-	BookIssueID *uuid.UUID      `json:"book_issue_id"`
-	Amount      decimal.Decimal `json:"amount"`
-	Reason      string          `json:"reason"`
-	FineDate    *time.Time      `json:"fine_date"`
-	PaidDate    *time.Time      `json:"paid_date"`
-	PaidAmount  decimal.Decimal `json:"paid_amount"`
-	IsPaid      *bool           `json:"is_paid"`
-	LibrarianID *uuid.UUID      `json:"librarian_id"`
-	CreatedAt   *time.Time      `json:"created_at"`
-	UpdatedAt   *time.Time      `json:"updated_at"`
-	IssueDate   *time.Time      `json:"issue_date"`
-	DueDate     *time.Time      `json:"due_date"`
-	BookTitle   *string         `json:"book_title"`
+type GetUnpaidFinesRow struct {
+	ID           uuid.UUID       `json:"id"`
+	TicketNumber string          `json:"ticket_number"`
+	ReaderName   string          `json:"reader_name"`
+	Amount       decimal.Decimal `json:"amount"`
+	Reason       string          `json:"reason"`
+	FineDate     *time.Time      `json:"fine_date"`
 }
 
-func (q *Queries) GetUnpaidFinesByReader(ctx context.Context, readerID uuid.UUID) ([]*GetUnpaidFinesByReaderRow, error) {
-	rows, err := q.db.Query(ctx, getUnpaidFinesByReader, readerID)
+func (q *Queries) GetUnpaidFines(ctx context.Context) ([]*GetUnpaidFinesRow, error) {
+	rows, err := q.db.Query(ctx, getUnpaidFines)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*GetUnpaidFinesByReaderRow{}
+	items := []*GetUnpaidFinesRow{}
 	for rows.Next() {
-		var i GetUnpaidFinesByReaderRow
+		var i GetUnpaidFinesRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.ReaderID,
-			&i.BookIssueID,
+			&i.TicketNumber,
+			&i.ReaderName,
 			&i.Amount,
 			&i.Reason,
 			&i.FineDate,
-			&i.PaidDate,
-			&i.PaidAmount,
-			&i.IsPaid,
-			&i.LibrarianID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.IssueDate,
-			&i.DueDate,
-			&i.BookTitle,
 		); err != nil {
 			return nil, err
 		}
@@ -367,72 +156,22 @@ func (q *Queries) GetUnpaidFinesByReader(ctx context.Context, readerID uuid.UUID
 	return items, nil
 }
 
-const payFine = `-- name: PayFine :exec
+const payFine = `-- name: PayFine :one
 UPDATE fines
-SET
-    paid_date = $1,
-    paid_amount = $2,
-    is_paid = ($2 >= amount),
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = $3
+SET paid_date = CURRENT_DATE, is_paid = true
+WHERE id = $1
+RETURNING id, amount, paid_date
 `
 
-type PayFineParams struct {
-	PaidDate   *time.Time      `json:"paid_date"`
-	PaidAmount decimal.Decimal `json:"paid_amount"`
-	FineID     uuid.UUID       `json:"fine_id"`
+type PayFineRow struct {
+	ID       uuid.UUID       `json:"id"`
+	Amount   decimal.Decimal `json:"amount"`
+	PaidDate *time.Time      `json:"paid_date"`
 }
 
-func (q *Queries) PayFine(ctx context.Context, arg PayFineParams) error {
-	_, err := q.db.Exec(ctx, payFine, arg.PaidDate, arg.PaidAmount, arg.FineID)
-	return err
-}
-
-const updateFine = `-- name: UpdateFine :one
-UPDATE fines
-SET
-    amount = COALESCE($1, amount),
-    reason = COALESCE($2, reason),
-    paid_date = COALESCE($3, paid_date),
-    paid_amount = COALESCE($4, paid_amount),
-    is_paid = COALESCE($5, is_paid),
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = $6
-RETURNING id, reader_id, book_issue_id, amount, reason, fine_date, paid_date, paid_amount, is_paid, librarian_id, created_at, updated_at
-`
-
-type UpdateFineParams struct {
-	Amount     decimal.Decimal `json:"amount"`
-	Reason     string          `json:"reason"`
-	PaidDate   *time.Time      `json:"paid_date"`
-	PaidAmount decimal.Decimal `json:"paid_amount"`
-	IsPaid     *bool           `json:"is_paid"`
-	FineID     uuid.UUID       `json:"fine_id"`
-}
-
-func (q *Queries) UpdateFine(ctx context.Context, arg UpdateFineParams) (*Fine, error) {
-	row := q.db.QueryRow(ctx, updateFine,
-		arg.Amount,
-		arg.Reason,
-		arg.PaidDate,
-		arg.PaidAmount,
-		arg.IsPaid,
-		arg.FineID,
-	)
-	var i Fine
-	err := row.Scan(
-		&i.ID,
-		&i.ReaderID,
-		&i.BookIssueID,
-		&i.Amount,
-		&i.Reason,
-		&i.FineDate,
-		&i.PaidDate,
-		&i.PaidAmount,
-		&i.IsPaid,
-		&i.LibrarianID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
+func (q *Queries) PayFine(ctx context.Context, fineID uuid.UUID) (*PayFineRow, error) {
+	row := q.db.QueryRow(ctx, payFine, fineID)
+	var i PayFineRow
+	err := row.Scan(&i.ID, &i.Amount, &i.PaidDate)
 	return &i, err
 }

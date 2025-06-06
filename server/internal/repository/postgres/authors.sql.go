@@ -11,171 +11,45 @@ import (
 	"github.com/google/uuid"
 )
 
-const countAuthors = `-- name: CountAuthors :one
-SELECT COUNT(*) FROM authors
-`
-
-func (q *Queries) CountAuthors(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countAuthors)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createAuthor = `-- name: CreateAuthor :one
-INSERT INTO authors (full_name, birth_year, death_year, biography)
-VALUES ($1, $2, $3, $4)
-RETURNING id, full_name, birth_year, death_year, biography, created_at
+INSERT INTO authors (full_name)
+VALUES ($1)
+RETURNING id, full_name
 `
 
-type CreateAuthorParams struct {
-	FullName  string  `json:"full_name"`
-	BirthYear *int    `json:"birth_year"`
-	DeathYear *int    `json:"death_year"`
-	Biography *string `json:"biography"`
+type CreateAuthorRow struct {
+	ID       uuid.UUID `json:"id"`
+	FullName string    `json:"full_name"`
 }
 
-func (q *Queries) CreateAuthor(ctx context.Context, arg CreateAuthorParams) (*Author, error) {
-	row := q.db.QueryRow(ctx, createAuthor,
-		arg.FullName,
-		arg.BirthYear,
-		arg.DeathYear,
-		arg.Biography,
-	)
-	var i Author
-	err := row.Scan(
-		&i.ID,
-		&i.FullName,
-		&i.BirthYear,
-		&i.DeathYear,
-		&i.Biography,
-		&i.CreatedAt,
-	)
+func (q *Queries) CreateAuthor(ctx context.Context, fullName string) (*CreateAuthorRow, error) {
+	row := q.db.QueryRow(ctx, createAuthor, fullName)
+	var i CreateAuthorRow
+	err := row.Scan(&i.ID, &i.FullName)
 	return &i, err
 }
 
-const deleteAuthor = `-- name: DeleteAuthor :exec
-DELETE FROM authors WHERE id = $1
-`
-
-func (q *Queries) DeleteAuthor(ctx context.Context, authorID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteAuthor, authorID)
-	return err
-}
-
-const getAuthorByID = `-- name: GetAuthorByID :one
-SELECT id, full_name, birth_year, death_year, biography, created_at FROM authors WHERE id = $1
-`
-
-func (q *Queries) GetAuthorByID(ctx context.Context, authorID uuid.UUID) (*Author, error) {
-	row := q.db.QueryRow(ctx, getAuthorByID, authorID)
-	var i Author
-	err := row.Scan(
-		&i.ID,
-		&i.FullName,
-		&i.BirthYear,
-		&i.DeathYear,
-		&i.Biography,
-		&i.CreatedAt,
-	)
-	return &i, err
-}
-
-const getAuthorsByBook = `-- name: GetAuthorsByBook :many
-SELECT a.id, a.full_name, a.birth_year, a.death_year, a.biography, a.created_at
-FROM authors a
-JOIN book_authors ba ON a.id = ba.author_id
-WHERE ba.book_id = $1
-ORDER BY a.full_name
-`
-
-func (q *Queries) GetAuthorsByBook(ctx context.Context, bookID uuid.UUID) ([]*Author, error) {
-	rows, err := q.db.Query(ctx, getAuthorsByBook, bookID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []*Author{}
-	for rows.Next() {
-		var i Author
-		if err := rows.Scan(
-			&i.ID,
-			&i.FullName,
-			&i.BirthYear,
-			&i.DeathYear,
-			&i.Biography,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listAuthors = `-- name: ListAuthors :many
-SELECT id, full_name, birth_year, death_year, biography, created_at FROM authors ORDER BY full_name
-LIMIT $2 OFFSET $1
-`
-
-type ListAuthorsParams struct {
-	OffsetVal int32 `json:"offset_val"`
-	LimitVal  int32 `json:"limit_val"`
-}
-
-func (q *Queries) ListAuthors(ctx context.Context, arg ListAuthorsParams) ([]*Author, error) {
-	rows, err := q.db.Query(ctx, listAuthors, arg.OffsetVal, arg.LimitVal)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []*Author{}
-	for rows.Next() {
-		var i Author
-		if err := rows.Scan(
-			&i.ID,
-			&i.FullName,
-			&i.BirthYear,
-			&i.DeathYear,
-			&i.Biography,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const searchAuthorsByName = `-- name: SearchAuthorsByName :many
-SELECT id, full_name, birth_year, death_year, biography, created_at FROM authors
-WHERE to_tsvector('russian', full_name) @@ plainto_tsquery('russian', $1)
+const getAllAuthors = `-- name: GetAllAuthors :many
+SELECT id, full_name
+FROM authors
 ORDER BY full_name
 `
 
-func (q *Queries) SearchAuthorsByName(ctx context.Context, searchQuery string) ([]*Author, error) {
-	rows, err := q.db.Query(ctx, searchAuthorsByName, searchQuery)
+type GetAllAuthorsRow struct {
+	ID       uuid.UUID `json:"id"`
+	FullName string    `json:"full_name"`
+}
+
+func (q *Queries) GetAllAuthors(ctx context.Context) ([]*GetAllAuthorsRow, error) {
+	rows, err := q.db.Query(ctx, getAllAuthors)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*Author{}
+	items := []*GetAllAuthorsRow{}
 	for rows.Next() {
-		var i Author
-		if err := rows.Scan(
-			&i.ID,
-			&i.FullName,
-			&i.BirthYear,
-			&i.DeathYear,
-			&i.Biography,
-			&i.CreatedAt,
-		); err != nil {
+		var i GetAllAuthorsRow
+		if err := rows.Scan(&i.ID, &i.FullName); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -186,41 +60,71 @@ func (q *Queries) SearchAuthorsByName(ctx context.Context, searchQuery string) (
 	return items, nil
 }
 
-const updateAuthor = `-- name: UpdateAuthor :one
-UPDATE authors
-SET
-    full_name = COALESCE($1, full_name),
-    birth_year = COALESCE($2, birth_year),
-    death_year = COALESCE($3, death_year),
-    biography = COALESCE($4, biography)
-WHERE id = $5
-RETURNING id, full_name, birth_year, death_year, biography, created_at
+const getAuthorById = `-- name: GetAuthorById :one
+SELECT id, full_name
+FROM authors
+WHERE id = $1
 `
 
-type UpdateAuthorParams struct {
-	FullName  string    `json:"full_name"`
-	BirthYear *int      `json:"birth_year"`
-	DeathYear *int      `json:"death_year"`
-	Biography *string   `json:"biography"`
-	AuthorID  uuid.UUID `json:"author_id"`
+type GetAuthorByIdRow struct {
+	ID       uuid.UUID `json:"id"`
+	FullName string    `json:"full_name"`
 }
 
-func (q *Queries) UpdateAuthor(ctx context.Context, arg UpdateAuthorParams) (*Author, error) {
-	row := q.db.QueryRow(ctx, updateAuthor,
-		arg.FullName,
-		arg.BirthYear,
-		arg.DeathYear,
-		arg.Biography,
-		arg.AuthorID,
-	)
-	var i Author
-	err := row.Scan(
-		&i.ID,
-		&i.FullName,
-		&i.BirthYear,
-		&i.DeathYear,
-		&i.Biography,
-		&i.CreatedAt,
-	)
+func (q *Queries) GetAuthorById(ctx context.Context, id uuid.UUID) (*GetAuthorByIdRow, error) {
+	row := q.db.QueryRow(ctx, getAuthorById, id)
+	var i GetAuthorByIdRow
+	err := row.Scan(&i.ID, &i.FullName)
 	return &i, err
+}
+
+const getOrCreateAuthor = `-- name: GetOrCreateAuthor :one
+INSERT INTO authors (full_name)
+VALUES ($1)
+ON CONFLICT (full_name) DO UPDATE SET full_name = EXCLUDED.full_name
+RETURNING id, full_name
+`
+
+type GetOrCreateAuthorRow struct {
+	ID       uuid.UUID `json:"id"`
+	FullName string    `json:"full_name"`
+}
+
+func (q *Queries) GetOrCreateAuthor(ctx context.Context, fullName string) (*GetOrCreateAuthorRow, error) {
+	row := q.db.QueryRow(ctx, getOrCreateAuthor, fullName)
+	var i GetOrCreateAuthorRow
+	err := row.Scan(&i.ID, &i.FullName)
+	return &i, err
+}
+
+const searchAuthors = `-- name: SearchAuthors :many
+SELECT id, full_name
+FROM authors
+WHERE full_name ILIKE '%' || $1 || '%'
+ORDER BY full_name
+`
+
+type SearchAuthorsRow struct {
+	ID       uuid.UUID `json:"id"`
+	FullName string    `json:"full_name"`
+}
+
+func (q *Queries) SearchAuthors(ctx context.Context, searchTerm *string) ([]*SearchAuthorsRow, error) {
+	rows, err := q.db.Query(ctx, searchAuthors, searchTerm)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*SearchAuthorsRow{}
+	for rows.Next() {
+		var i SearchAuthorsRow
+		if err := rows.Scan(&i.ID, &i.FullName); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

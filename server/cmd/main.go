@@ -13,6 +13,7 @@ import (
 	"github.com/hnnsly/library-console/internal/config"
 	"github.com/hnnsly/library-console/internal/handler"
 	"github.com/hnnsly/library-console/internal/logger"
+	"github.com/hnnsly/library-console/internal/repository"
 	"github.com/hnnsly/library-console/internal/repository/postgres"
 	"github.com/hnnsly/library-console/internal/repository/redis"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -40,8 +41,10 @@ func main() {
 	rd := mustOpenRedis(ctx, *cfg.Rd)
 	defer rd.Close()
 
+	repo := repository.New(postgres.New(pgPool), rd)
+
 	// Create API handler and Fiber app
-	h := handler.NewHandler(postgres.New(pgPool), rd, cfg.Library)
+	h := handler.NewHandler(repo, cfg.Library)
 	app := h.Router()
 
 	// Start server

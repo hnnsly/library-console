@@ -7,62 +7,11 @@ package postgres
 import (
 	"database/sql/driver"
 	"fmt"
-	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/govalues/decimal"
 )
-
-type ActionType string
-
-const (
-	ActionTypeLogin          ActionType = "login"
-	ActionTypeLogout         ActionType = "logout"
-	ActionTypeBookIssue      ActionType = "book_issue"
-	ActionTypeBookReturn     ActionType = "book_return"
-	ActionTypeBookExtend     ActionType = "book_extend"
-	ActionTypeBookAdd        ActionType = "book_add"
-	ActionTypeBookRemove     ActionType = "book_remove"
-	ActionTypeReaderRegister ActionType = "reader_register"
-	ActionTypeReaderUpdate   ActionType = "reader_update"
-	ActionTypeFinePayment    ActionType = "fine_payment"
-)
-
-func (e *ActionType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = ActionType(s)
-	case string:
-		*e = ActionType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for ActionType: %T", src)
-	}
-	return nil
-}
-
-type NullActionType struct {
-	ActionType ActionType `json:"action_type"`
-	Valid      bool       `json:"valid"` // Valid is true if ActionType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullActionType) Scan(value interface{}) error {
-	if value == nil {
-		ns.ActionType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.ActionType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullActionType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.ActionType), nil
-}
 
 type BookStatus string
 
@@ -114,7 +63,6 @@ type UserRole string
 const (
 	UserRoleAdministrator UserRole = "administrator"
 	UserRoleLibrarian     UserRole = "librarian"
-	UserRoleReader        UserRole = "reader"
 )
 
 func (e *UserRole) Scan(src interface{}) error {
@@ -152,12 +100,51 @@ func (ns NullUserRole) Value() (driver.Value, error) {
 	return string(ns.UserRole), nil
 }
 
+type VisitType string
+
+const (
+	VisitTypeEntry VisitType = "entry"
+	VisitTypeExit  VisitType = "exit"
+)
+
+func (e *VisitType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = VisitType(s)
+	case string:
+		*e = VisitType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for VisitType: %T", src)
+	}
+	return nil
+}
+
+type NullVisitType struct {
+	VisitType VisitType `json:"visit_type"`
+	Valid     bool      `json:"valid"` // Valid is true if VisitType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullVisitType) Scan(value interface{}) error {
+	if value == nil {
+		ns.VisitType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.VisitType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullVisitType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.VisitType), nil
+}
+
 type Author struct {
 	ID        uuid.UUID  `json:"id"`
 	FullName  string     `json:"full_name"`
-	BirthYear *int       `json:"birth_year"`
-	DeathYear *int       `json:"death_year"`
-	Biography *string    `json:"biography"`
 	CreatedAt *time.Time `json:"created_at"`
 }
 
@@ -167,13 +154,9 @@ type Book struct {
 	Isbn            *string    `json:"isbn"`
 	PublicationYear *int       `json:"publication_year"`
 	Publisher       *string    `json:"publisher"`
-	Pages           *int       `json:"pages"`
-	Language        *string    `json:"language"`
-	Description     *string    `json:"description"`
 	TotalCopies     int        `json:"total_copies"`
 	AvailableCopies int        `json:"available_copies"`
 	CreatedAt       *time.Time `json:"created_at"`
-	UpdatedAt       *time.Time `json:"updated_at"`
 }
 
 type BookAuthor struct {
@@ -182,38 +165,24 @@ type BookAuthor struct {
 }
 
 type BookCopy struct {
-	ID             uuid.UUID      `json:"id"`
-	BookID         uuid.UUID      `json:"book_id"`
-	CopyCode       string         `json:"copy_code"`
-	Status         NullBookStatus `json:"status"`
-	ReadingHallID  *uuid.UUID     `json:"reading_hall_id"`
-	ConditionNotes *string        `json:"condition_notes"`
-	CreatedAt      *time.Time     `json:"created_at"`
-	UpdatedAt      *time.Time     `json:"updated_at"`
+	ID           uuid.UUID      `json:"id"`
+	BookID       uuid.UUID      `json:"book_id"`
+	CopyCode     string         `json:"copy_code"`
+	Status       NullBookStatus `json:"status"`
+	HallID       *uuid.UUID     `json:"hall_id"`
+	LocationInfo *string        `json:"location_info"`
+	CreatedAt    *time.Time     `json:"created_at"`
 }
 
 type BookIssue struct {
-	ID            uuid.UUID  `json:"id"`
-	ReaderID      uuid.UUID  `json:"reader_id"`
-	BookCopyID    uuid.UUID  `json:"book_copy_id"`
-	IssueDate     *time.Time `json:"issue_date"`
-	DueDate       time.Time  `json:"due_date"`
-	ReturnDate    *time.Time `json:"return_date"`
-	ExtendedCount *int       `json:"extended_count"`
-	LibrarianID   *uuid.UUID `json:"librarian_id"`
-	Notes         *string    `json:"notes"`
-	CreatedAt     *time.Time `json:"created_at"`
-	UpdatedAt     *time.Time `json:"updated_at"`
-}
-
-type BookRating struct {
-	ID         uuid.UUID  `json:"id"`
-	BookID     uuid.UUID  `json:"book_id"`
-	ReaderID   uuid.UUID  `json:"reader_id"`
-	Rating     int        `json:"rating"`
-	Review     *string    `json:"review"`
-	RatingDate *time.Time `json:"rating_date"`
-	CreatedAt  *time.Time `json:"created_at"`
+	ID          uuid.UUID  `json:"id"`
+	ReaderID    uuid.UUID  `json:"reader_id"`
+	BookCopyID  uuid.UUID  `json:"book_copy_id"`
+	IssueDate   *time.Time `json:"issue_date"`
+	DueDate     time.Time  `json:"due_date"`
+	ReturnDate  *time.Time `json:"return_date"`
+	LibrarianID *uuid.UUID `json:"librarian_id"`
+	CreatedAt   *time.Time `json:"created_at"`
 }
 
 type Fine struct {
@@ -224,50 +193,37 @@ type Fine struct {
 	Reason      string          `json:"reason"`
 	FineDate    *time.Time      `json:"fine_date"`
 	PaidDate    *time.Time      `json:"paid_date"`
-	PaidAmount  decimal.Decimal `json:"paid_amount"`
 	IsPaid      *bool           `json:"is_paid"`
-	LibrarianID *uuid.UUID      `json:"librarian_id"`
 	CreatedAt   *time.Time      `json:"created_at"`
-	UpdatedAt   *time.Time      `json:"updated_at"`
+}
+
+type HallVisit struct {
+	ID          uuid.UUID  `json:"id"`
+	ReaderID    uuid.UUID  `json:"reader_id"`
+	HallID      uuid.UUID  `json:"hall_id"`
+	VisitType   VisitType  `json:"visit_type"`
+	VisitTime   *time.Time `json:"visit_time"`
+	LibrarianID *uuid.UUID `json:"librarian_id"`
 }
 
 type Reader struct {
 	ID               uuid.UUID  `json:"id"`
-	UserID           *uuid.UUID `json:"user_id"`
 	TicketNumber     string     `json:"ticket_number"`
 	FullName         string     `json:"full_name"`
-	BirthDate        time.Time  `json:"birth_date"`
+	Email            *string    `json:"email"`
 	Phone            *string    `json:"phone"`
-	Education        *string    `json:"education"`
-	ReadingHallID    *uuid.UUID `json:"reading_hall_id"`
 	RegistrationDate *time.Time `json:"registration_date"`
 	IsActive         *bool      `json:"is_active"`
 	CreatedAt        *time.Time `json:"created_at"`
-	UpdatedAt        *time.Time `json:"updated_at"`
 }
 
 type ReadingHall struct {
-	ID             uuid.UUID  `json:"id"`
-	LibraryName    string     `json:"library_name"`
-	HallName       string     `json:"hall_name"`
-	Specialization *string    `json:"specialization"`
-	TotalSeats     int        `json:"total_seats"`
-	OccupiedSeats  *int       `json:"occupied_seats"`
-	CreatedAt      *time.Time `json:"created_at"`
-}
-
-type SystemLog struct {
-	ID              uuid.UUID   `json:"id"`
-	UserID          *uuid.UUID  `json:"user_id"`
-	ActionType      ActionType  `json:"action_type"`
-	EntityType      *string     `json:"entity_type"`
-	EntityID        *uuid.UUID  `json:"entity_id"`
-	OldValues       []byte      `json:"old_values"`
-	NewValues       []byte      `json:"new_values"`
-	IpAddress       *netip.Addr `json:"ip_address"`
-	UserAgent       *string     `json:"user_agent"`
-	ActionTimestamp *time.Time  `json:"action_timestamp"`
-	Details         *string     `json:"details"`
+	ID              uuid.UUID  `json:"id"`
+	HallName        string     `json:"hall_name"`
+	Specialization  *string    `json:"specialization"`
+	TotalSeats      int        `json:"total_seats"`
+	CurrentVisitors *int       `json:"current_visitors"`
+	CreatedAt       *time.Time `json:"created_at"`
 }
 
 type User struct {
@@ -278,5 +234,4 @@ type User struct {
 	Role         UserRole   `json:"role"`
 	IsActive     *bool      `json:"is_active"`
 	CreatedAt    *time.Time `json:"created_at"`
-	UpdatedAt    *time.Time `json:"updated_at"`
 }

@@ -12,159 +12,151 @@ import (
 	"github.com/google/uuid"
 )
 
-const countReaders = `-- name: CountReaders :one
-SELECT COUNT(*) FROM readers WHERE is_active = true
+const checkReaderOverdueBooks = `-- name: CheckReaderOverdueBooks :one
+SELECT COUNT(*) as overdue_books
+FROM book_issues bi
+WHERE bi.reader_id = $1
+  AND bi.return_date IS NULL
+  AND bi.due_date < CURRENT_DATE
 `
 
-func (q *Queries) CountReaders(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countReaders)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countReadersByHall = `-- name: CountReadersByHall :one
-SELECT COUNT(*) FROM readers WHERE reading_hall_id = $1 AND is_active = true
-`
-
-func (q *Queries) CountReadersByHall(ctx context.Context, hallID *uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countReadersByHall, hallID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+func (q *Queries) CheckReaderOverdueBooks(ctx context.Context, readerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, checkReaderOverdueBooks, readerID)
+	var overdue_books int64
+	err := row.Scan(&overdue_books)
+	return overdue_books, err
 }
 
 const createReader = `-- name: CreateReader :one
-INSERT INTO readers (user_id, ticket_number, full_name, birth_date, phone, education, reading_hall_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, user_id, ticket_number, full_name, birth_date, phone, education, reading_hall_id, registration_date, is_active, created_at, updated_at
+INSERT INTO readers (ticket_number, full_name, email, phone)
+VALUES ($1, $2, $3, $4)
+RETURNING id, ticket_number, created_at
 `
 
 type CreateReaderParams struct {
-	UserID        *uuid.UUID `json:"user_id"`
-	TicketNumber  string     `json:"ticket_number"`
-	FullName      string     `json:"full_name"`
-	BirthDate     time.Time  `json:"birth_date"`
-	Phone         *string    `json:"phone"`
-	Education     *string    `json:"education"`
-	ReadingHallID *uuid.UUID `json:"reading_hall_id"`
+	TicketNumber string  `json:"ticket_number"`
+	FullName     string  `json:"full_name"`
+	Email        *string `json:"email"`
+	Phone        *string `json:"phone"`
 }
 
-func (q *Queries) CreateReader(ctx context.Context, arg CreateReaderParams) (*Reader, error) {
+type CreateReaderRow struct {
+	ID           uuid.UUID  `json:"id"`
+	TicketNumber string     `json:"ticket_number"`
+	CreatedAt    *time.Time `json:"created_at"`
+}
+
+func (q *Queries) CreateReader(ctx context.Context, arg CreateReaderParams) (*CreateReaderRow, error) {
 	row := q.db.QueryRow(ctx, createReader,
-		arg.UserID,
 		arg.TicketNumber,
 		arg.FullName,
-		arg.BirthDate,
+		arg.Email,
 		arg.Phone,
-		arg.Education,
-		arg.ReadingHallID,
 	)
-	var i Reader
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.TicketNumber,
-		&i.FullName,
-		&i.BirthDate,
-		&i.Phone,
-		&i.Education,
-		&i.ReadingHallID,
-		&i.RegistrationDate,
-		&i.IsActive,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
+	var i CreateReaderRow
+	err := row.Scan(&i.ID, &i.TicketNumber, &i.CreatedAt)
 	return &i, err
 }
 
 const deactivateReader = `-- name: DeactivateReader :exec
 UPDATE readers
-SET is_active = false, updated_at = CURRENT_TIMESTAMP
+SET is_active = false
 WHERE id = $1
 `
 
-func (q *Queries) DeactivateReader(ctx context.Context, readerID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deactivateReader, readerID)
+func (q *Queries) DeactivateReader(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deactivateReader, id)
 	return err
 }
 
-const getReaderByID = `-- name: GetReaderByID :one
-SELECT r.id, r.user_id, r.ticket_number, r.full_name, r.birth_date, r.phone, r.education, r.reading_hall_id, r.registration_date, r.is_active, r.created_at, r.updated_at, u.username, u.email, rh.hall_name, rh.specialization
-FROM readers r
-JOIN users u ON r.user_id = u.id
-LEFT JOIN reading_halls rh ON r.reading_hall_id = rh.id
-WHERE r.id = $1 AND r.is_active = true
+const getActiveReaders = `-- name: GetActiveReaders :many
+SELECT id, ticket_number, full_name, email, phone, registration_date
+FROM readers
+WHERE is_active = true
+ORDER BY full_name
 `
 
-type GetReaderByIDRow struct {
+type GetActiveReadersRow struct {
 	ID               uuid.UUID  `json:"id"`
-	UserID           *uuid.UUID `json:"user_id"`
 	TicketNumber     string     `json:"ticket_number"`
 	FullName         string     `json:"full_name"`
-	BirthDate        time.Time  `json:"birth_date"`
+	Email            *string    `json:"email"`
 	Phone            *string    `json:"phone"`
-	Education        *string    `json:"education"`
-	ReadingHallID    *uuid.UUID `json:"reading_hall_id"`
 	RegistrationDate *time.Time `json:"registration_date"`
-	IsActive         *bool      `json:"is_active"`
-	CreatedAt        *time.Time `json:"created_at"`
-	UpdatedAt        *time.Time `json:"updated_at"`
-	Username         string     `json:"username"`
-	Email            string     `json:"email"`
-	HallName         *string    `json:"hall_name"`
-	Specialization   *string    `json:"specialization"`
 }
 
-func (q *Queries) GetReaderByID(ctx context.Context, readerID uuid.UUID) (*GetReaderByIDRow, error) {
-	row := q.db.QueryRow(ctx, getReaderByID, readerID)
-	var i GetReaderByIDRow
+func (q *Queries) GetActiveReaders(ctx context.Context) ([]*GetActiveReadersRow, error) {
+	rows, err := q.db.Query(ctx, getActiveReaders)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*GetActiveReadersRow{}
+	for rows.Next() {
+		var i GetActiveReadersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TicketNumber,
+			&i.FullName,
+			&i.Email,
+			&i.Phone,
+			&i.RegistrationDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getReaderById = `-- name: GetReaderById :one
+SELECT id, ticket_number, full_name, email, phone, is_active, registration_date
+FROM readers
+WHERE id = $1
+`
+
+type GetReaderByIdRow struct {
+	ID               uuid.UUID  `json:"id"`
+	TicketNumber     string     `json:"ticket_number"`
+	FullName         string     `json:"full_name"`
+	Email            *string    `json:"email"`
+	Phone            *string    `json:"phone"`
+	IsActive         *bool      `json:"is_active"`
+	RegistrationDate *time.Time `json:"registration_date"`
+}
+
+func (q *Queries) GetReaderById(ctx context.Context, id uuid.UUID) (*GetReaderByIdRow, error) {
+	row := q.db.QueryRow(ctx, getReaderById, id)
+	var i GetReaderByIdRow
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
 		&i.TicketNumber,
 		&i.FullName,
-		&i.BirthDate,
-		&i.Phone,
-		&i.Education,
-		&i.ReadingHallID,
-		&i.RegistrationDate,
-		&i.IsActive,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Username,
 		&i.Email,
-		&i.HallName,
-		&i.Specialization,
+		&i.Phone,
+		&i.IsActive,
+		&i.RegistrationDate,
 	)
 	return &i, err
 }
 
 const getReaderByTicketNumber = `-- name: GetReaderByTicketNumber :one
-SELECT r.id, r.user_id, r.ticket_number, r.full_name, r.birth_date, r.phone, r.education, r.reading_hall_id, r.registration_date, r.is_active, r.created_at, r.updated_at, u.username, u.email, rh.hall_name, rh.specialization
-FROM readers r
-JOIN users u ON r.user_id = u.id
-LEFT JOIN reading_halls rh ON r.reading_hall_id = rh.id
-WHERE r.ticket_number = $1 AND r.is_active = true
+SELECT id, ticket_number, full_name, email, phone, is_active, registration_date
+FROM readers
+WHERE ticket_number = $1
 `
 
 type GetReaderByTicketNumberRow struct {
 	ID               uuid.UUID  `json:"id"`
-	UserID           *uuid.UUID `json:"user_id"`
 	TicketNumber     string     `json:"ticket_number"`
 	FullName         string     `json:"full_name"`
-	BirthDate        time.Time  `json:"birth_date"`
+	Email            *string    `json:"email"`
 	Phone            *string    `json:"phone"`
-	Education        *string    `json:"education"`
-	ReadingHallID    *uuid.UUID `json:"reading_hall_id"`
-	RegistrationDate *time.Time `json:"registration_date"`
 	IsActive         *bool      `json:"is_active"`
-	CreatedAt        *time.Time `json:"created_at"`
-	UpdatedAt        *time.Time `json:"updated_at"`
-	Username         string     `json:"username"`
-	Email            string     `json:"email"`
-	HallName         *string    `json:"hall_name"`
-	Specialization   *string    `json:"specialization"`
+	RegistrationDate *time.Time `json:"registration_date"`
 }
 
 func (q *Queries) GetReaderByTicketNumber(ctx context.Context, ticketNumber string) (*GetReaderByTicketNumberRow, error) {
@@ -172,252 +164,57 @@ func (q *Queries) GetReaderByTicketNumber(ctx context.Context, ticketNumber stri
 	var i GetReaderByTicketNumberRow
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
 		&i.TicketNumber,
 		&i.FullName,
-		&i.BirthDate,
-		&i.Phone,
-		&i.Education,
-		&i.ReadingHallID,
-		&i.RegistrationDate,
-		&i.IsActive,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Username,
 		&i.Email,
-		&i.HallName,
-		&i.Specialization,
-	)
-	return &i, err
-}
-
-const getReaderByUserID = `-- name: GetReaderByUserID :one
-SELECT r.id, r.user_id, r.ticket_number, r.full_name, r.birth_date, r.phone, r.education, r.reading_hall_id, r.registration_date, r.is_active, r.created_at, r.updated_at, rh.hall_name, rh.specialization
-FROM readers r
-LEFT JOIN reading_halls rh ON r.reading_hall_id = rh.id
-WHERE r.user_id = $1 AND r.is_active = true
-`
-
-type GetReaderByUserIDRow struct {
-	ID               uuid.UUID  `json:"id"`
-	UserID           *uuid.UUID `json:"user_id"`
-	TicketNumber     string     `json:"ticket_number"`
-	FullName         string     `json:"full_name"`
-	BirthDate        time.Time  `json:"birth_date"`
-	Phone            *string    `json:"phone"`
-	Education        *string    `json:"education"`
-	ReadingHallID    *uuid.UUID `json:"reading_hall_id"`
-	RegistrationDate *time.Time `json:"registration_date"`
-	IsActive         *bool      `json:"is_active"`
-	CreatedAt        *time.Time `json:"created_at"`
-	UpdatedAt        *time.Time `json:"updated_at"`
-	HallName         *string    `json:"hall_name"`
-	Specialization   *string    `json:"specialization"`
-}
-
-func (q *Queries) GetReaderByUserID(ctx context.Context, userID *uuid.UUID) (*GetReaderByUserIDRow, error) {
-	row := q.db.QueryRow(ctx, getReaderByUserID, userID)
-	var i GetReaderByUserIDRow
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.TicketNumber,
-		&i.FullName,
-		&i.BirthDate,
 		&i.Phone,
-		&i.Education,
-		&i.ReadingHallID,
-		&i.RegistrationDate,
 		&i.IsActive,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.HallName,
-		&i.Specialization,
+		&i.RegistrationDate,
 	)
 	return &i, err
 }
 
-const listAllReaders = `-- name: ListAllReaders :many
-SELECT r.id, r.user_id, r.ticket_number, r.full_name, r.birth_date, r.phone, r.education, r.reading_hall_id, r.registration_date, r.is_active, r.created_at, r.updated_at, u.username, u.email, rh.hall_name
-FROM readers r
-JOIN users u ON r.user_id = u.id
-LEFT JOIN reading_halls rh ON r.reading_hall_id = rh.id
-WHERE r.is_active = true
-ORDER BY r.created_at DESC
-LIMIT $2 OFFSET $1
+const searchReaders = `-- name: SearchReaders :many
+SELECT id, ticket_number, full_name, email, phone, is_active, registration_date
+FROM readers
+WHERE (full_name ILIKE '%' || $1 || '%'
+    OR ticket_number ILIKE '%' || $1 || '%')
+  AND ($2::boolean OR is_active = true)
+ORDER BY full_name
 `
 
-type ListAllReadersParams struct {
-	OffsetVal int32 `json:"offset_val"`
-	LimitVal  int32 `json:"limit_val"`
+type SearchReadersParams struct {
+	SearchTerm      *string `json:"search_term"`
+	IncludeInactive bool    `json:"include_inactive"`
 }
 
-type ListAllReadersRow struct {
+type SearchReadersRow struct {
 	ID               uuid.UUID  `json:"id"`
-	UserID           *uuid.UUID `json:"user_id"`
 	TicketNumber     string     `json:"ticket_number"`
 	FullName         string     `json:"full_name"`
-	BirthDate        time.Time  `json:"birth_date"`
+	Email            *string    `json:"email"`
 	Phone            *string    `json:"phone"`
-	Education        *string    `json:"education"`
-	ReadingHallID    *uuid.UUID `json:"reading_hall_id"`
-	RegistrationDate *time.Time `json:"registration_date"`
 	IsActive         *bool      `json:"is_active"`
-	CreatedAt        *time.Time `json:"created_at"`
-	UpdatedAt        *time.Time `json:"updated_at"`
-	Username         string     `json:"username"`
-	Email            string     `json:"email"`
-	HallName         *string    `json:"hall_name"`
+	RegistrationDate *time.Time `json:"registration_date"`
 }
 
-func (q *Queries) ListAllReaders(ctx context.Context, arg ListAllReadersParams) ([]*ListAllReadersRow, error) {
-	rows, err := q.db.Query(ctx, listAllReaders, arg.OffsetVal, arg.LimitVal)
+func (q *Queries) SearchReaders(ctx context.Context, arg SearchReadersParams) ([]*SearchReadersRow, error) {
+	rows, err := q.db.Query(ctx, searchReaders, arg.SearchTerm, arg.IncludeInactive)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*ListAllReadersRow{}
+	items := []*SearchReadersRow{}
 	for rows.Next() {
-		var i ListAllReadersRow
+		var i SearchReadersRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.UserID,
 			&i.TicketNumber,
 			&i.FullName,
-			&i.BirthDate,
-			&i.Phone,
-			&i.Education,
-			&i.ReadingHallID,
-			&i.RegistrationDate,
-			&i.IsActive,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Username,
 			&i.Email,
-			&i.HallName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listReadersByHall = `-- name: ListReadersByHall :many
-SELECT r.id, r.user_id, r.ticket_number, r.full_name, r.birth_date, r.phone, r.education, r.reading_hall_id, r.registration_date, r.is_active, r.created_at, r.updated_at, u.username, u.email
-FROM readers r
-JOIN users u ON r.user_id = u.id
-WHERE r.reading_hall_id = $1 AND r.is_active = true
-ORDER BY r.full_name
-`
-
-type ListReadersByHallRow struct {
-	ID               uuid.UUID  `json:"id"`
-	UserID           *uuid.UUID `json:"user_id"`
-	TicketNumber     string     `json:"ticket_number"`
-	FullName         string     `json:"full_name"`
-	BirthDate        time.Time  `json:"birth_date"`
-	Phone            *string    `json:"phone"`
-	Education        *string    `json:"education"`
-	ReadingHallID    *uuid.UUID `json:"reading_hall_id"`
-	RegistrationDate *time.Time `json:"registration_date"`
-	IsActive         *bool      `json:"is_active"`
-	CreatedAt        *time.Time `json:"created_at"`
-	UpdatedAt        *time.Time `json:"updated_at"`
-	Username         string     `json:"username"`
-	Email            string     `json:"email"`
-}
-
-func (q *Queries) ListReadersByHall(ctx context.Context, hallID *uuid.UUID) ([]*ListReadersByHallRow, error) {
-	rows, err := q.db.Query(ctx, listReadersByHall, hallID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []*ListReadersByHallRow{}
-	for rows.Next() {
-		var i ListReadersByHallRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.TicketNumber,
-			&i.FullName,
-			&i.BirthDate,
 			&i.Phone,
-			&i.Education,
-			&i.ReadingHallID,
-			&i.RegistrationDate,
 			&i.IsActive,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Username,
-			&i.Email,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const searchReadersByName = `-- name: SearchReadersByName :many
-SELECT r.id, r.user_id, r.ticket_number, r.full_name, r.birth_date, r.phone, r.education, r.reading_hall_id, r.registration_date, r.is_active, r.created_at, r.updated_at, u.username, u.email, rh.hall_name
-FROM readers r
-JOIN users u ON r.user_id = u.id
-LEFT JOIN reading_halls rh ON r.reading_hall_id = rh.id
-WHERE r.full_name ILIKE '%' || $1 || '%' AND r.is_active = true
-ORDER BY r.full_name
-`
-
-type SearchReadersByNameRow struct {
-	ID               uuid.UUID  `json:"id"`
-	UserID           *uuid.UUID `json:"user_id"`
-	TicketNumber     string     `json:"ticket_number"`
-	FullName         string     `json:"full_name"`
-	BirthDate        time.Time  `json:"birth_date"`
-	Phone            *string    `json:"phone"`
-	Education        *string    `json:"education"`
-	ReadingHallID    *uuid.UUID `json:"reading_hall_id"`
-	RegistrationDate *time.Time `json:"registration_date"`
-	IsActive         *bool      `json:"is_active"`
-	CreatedAt        *time.Time `json:"created_at"`
-	UpdatedAt        *time.Time `json:"updated_at"`
-	Username         string     `json:"username"`
-	Email            string     `json:"email"`
-	HallName         *string    `json:"hall_name"`
-}
-
-func (q *Queries) SearchReadersByName(ctx context.Context, searchQuery *string) ([]*SearchReadersByNameRow, error) {
-	rows, err := q.db.Query(ctx, searchReadersByName, searchQuery)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []*SearchReadersByNameRow{}
-	for rows.Next() {
-		var i SearchReadersByNameRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.TicketNumber,
-			&i.FullName,
-			&i.BirthDate,
-			&i.Phone,
-			&i.Education,
-			&i.ReadingHallID,
 			&i.RegistrationDate,
-			&i.IsActive,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Username,
-			&i.Email,
-			&i.HallName,
 		); err != nil {
 			return nil, err
 		}
@@ -431,46 +228,40 @@ func (q *Queries) SearchReadersByName(ctx context.Context, searchQuery *string) 
 
 const updateReader = `-- name: UpdateReader :one
 UPDATE readers
-SET
-    full_name = COALESCE($1, full_name),
-    phone = COALESCE($2, phone),
-    education = COALESCE($3, education),
-    reading_hall_id = COALESCE($4, reading_hall_id),
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = $5
-RETURNING id, user_id, ticket_number, full_name, birth_date, phone, education, reading_hall_id, registration_date, is_active, created_at, updated_at
+SET full_name = $1, email = $2, phone = $3
+WHERE id = $4
+RETURNING id, ticket_number, full_name, email, phone
 `
 
 type UpdateReaderParams struct {
-	FullName      string     `json:"full_name"`
-	Phone         *string    `json:"phone"`
-	Education     *string    `json:"education"`
-	ReadingHallID *uuid.UUID `json:"reading_hall_id"`
-	ReaderID      uuid.UUID  `json:"reader_id"`
+	FullName string    `json:"full_name"`
+	Email    *string   `json:"email"`
+	Phone    *string   `json:"phone"`
+	ID       uuid.UUID `json:"id"`
 }
 
-func (q *Queries) UpdateReader(ctx context.Context, arg UpdateReaderParams) (*Reader, error) {
+type UpdateReaderRow struct {
+	ID           uuid.UUID `json:"id"`
+	TicketNumber string    `json:"ticket_number"`
+	FullName     string    `json:"full_name"`
+	Email        *string   `json:"email"`
+	Phone        *string   `json:"phone"`
+}
+
+func (q *Queries) UpdateReader(ctx context.Context, arg UpdateReaderParams) (*UpdateReaderRow, error) {
 	row := q.db.QueryRow(ctx, updateReader,
 		arg.FullName,
+		arg.Email,
 		arg.Phone,
-		arg.Education,
-		arg.ReadingHallID,
-		arg.ReaderID,
+		arg.ID,
 	)
-	var i Reader
+	var i UpdateReaderRow
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
 		&i.TicketNumber,
 		&i.FullName,
-		&i.BirthDate,
+		&i.Email,
 		&i.Phone,
-		&i.Education,
-		&i.ReadingHallID,
-		&i.RegistrationDate,
-		&i.IsActive,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return &i, err
 }

@@ -14,7 +14,6 @@ import (
 const addBookAuthor = `-- name: AddBookAuthor :exec
 INSERT INTO book_authors (book_id, author_id)
 VALUES ($1, $2)
-ON CONFLICT (book_id, author_id) DO NOTHING
 `
 
 type AddBookAuthorParams struct {
@@ -28,35 +27,34 @@ func (q *Queries) AddBookAuthor(ctx context.Context, arg AddBookAuthorParams) er
 }
 
 const getAuthorBooks = `-- name: GetAuthorBooks :many
-SELECT b.id, b.title, b.isbn, b.publication_year, b.publisher, b.pages, b.language, b.description, b.total_copies, b.available_copies, b.created_at, b.updated_at
+SELECT b.id, b.title, b.isbn, b.publication_year
 FROM books b
 JOIN book_authors ba ON b.id = ba.book_id
 WHERE ba.author_id = $1
 ORDER BY b.title
 `
 
-func (q *Queries) GetAuthorBooks(ctx context.Context, authorID uuid.UUID) ([]*Book, error) {
+type GetAuthorBooksRow struct {
+	ID              uuid.UUID `json:"id"`
+	Title           string    `json:"title"`
+	Isbn            *string   `json:"isbn"`
+	PublicationYear *int      `json:"publication_year"`
+}
+
+func (q *Queries) GetAuthorBooks(ctx context.Context, authorID uuid.UUID) ([]*GetAuthorBooksRow, error) {
 	rows, err := q.db.Query(ctx, getAuthorBooks, authorID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*Book{}
+	items := []*GetAuthorBooksRow{}
 	for rows.Next() {
-		var i Book
+		var i GetAuthorBooksRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
 			&i.Isbn,
 			&i.PublicationYear,
-			&i.Publisher,
-			&i.Pages,
-			&i.Language,
-			&i.Description,
-			&i.TotalCopies,
-			&i.AvailableCopies,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -69,30 +67,28 @@ func (q *Queries) GetAuthorBooks(ctx context.Context, authorID uuid.UUID) ([]*Bo
 }
 
 const getBookAuthors = `-- name: GetBookAuthors :many
-SELECT a.id, a.full_name, a.birth_year, a.death_year, a.biography, a.created_at
+SELECT a.id, a.full_name
 FROM authors a
 JOIN book_authors ba ON a.id = ba.author_id
 WHERE ba.book_id = $1
 ORDER BY a.full_name
 `
 
-func (q *Queries) GetBookAuthors(ctx context.Context, bookID uuid.UUID) ([]*Author, error) {
+type GetBookAuthorsRow struct {
+	ID       uuid.UUID `json:"id"`
+	FullName string    `json:"full_name"`
+}
+
+func (q *Queries) GetBookAuthors(ctx context.Context, bookID uuid.UUID) ([]*GetBookAuthorsRow, error) {
 	rows, err := q.db.Query(ctx, getBookAuthors, bookID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*Author{}
+	items := []*GetBookAuthorsRow{}
 	for rows.Next() {
-		var i Author
-		if err := rows.Scan(
-			&i.ID,
-			&i.FullName,
-			&i.BirthYear,
-			&i.DeathYear,
-			&i.Biography,
-			&i.CreatedAt,
-		); err != nil {
+		var i GetBookAuthorsRow
+		if err := rows.Scan(&i.ID, &i.FullName); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -101,15 +97,6 @@ func (q *Queries) GetBookAuthors(ctx context.Context, bookID uuid.UUID) ([]*Auth
 		return nil, err
 	}
 	return items, nil
-}
-
-const removeAllBookAuthors = `-- name: RemoveAllBookAuthors :exec
-DELETE FROM book_authors WHERE book_id = $1
-`
-
-func (q *Queries) RemoveAllBookAuthors(ctx context.Context, bookID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, removeAllBookAuthors, bookID)
-	return err
 }
 
 const removeBookAuthor = `-- name: RemoveBookAuthor :exec

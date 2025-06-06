@@ -4,14 +4,11 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/hnnsly/library-console/internal/config"
-	"github.com/hnnsly/library-console/internal/logger"
 	"github.com/hnnsly/library-console/internal/middleware"
 	"github.com/hnnsly/library-console/internal/repository"
 	httperr "github.com/hnnsly/library-console/pkg/error"
-
-	"github.com/hnnsly/library-console/internal/repository/postgres"
-	"github.com/hnnsly/library-console/internal/repository/redis"
 )
 
 type Handler struct {
@@ -19,8 +16,11 @@ type Handler struct {
 	cfg  *config.LibraryServiceConfig
 }
 
-func NewHandler(pg *postgres.Queries, rdb *redis.Redis, cfg *config.LibraryServiceConfig) *Handler {
-	return &Handler{repo: repository.New(pg, rdb), cfg: cfg}
+func NewHandler(repo *repository.LibraryRepository, cfg *config.LibraryServiceConfig) *Handler {
+	return &Handler{
+		repo: repo,
+		cfg:  cfg,
+	}
 }
 
 func (h *Handler) Router() *fiber.App {
@@ -28,8 +28,8 @@ func (h *Handler) Router() *fiber.App {
 		ErrorHandler: httperr.GlobalErrorHandler,
 	})
 
-	app.Use(logger.RequestLogger())
-	authMW := middleware.NewAuthMiddleware(h.repo, 24*time.Hour)
+	// Middleware
+	app.Use(recover.New())
 
 	// Health check
 	app.Get("/health", h.healthCheck)
@@ -37,136 +37,99 @@ func (h *Handler) Router() *fiber.App {
 	// API routes
 	api := app.Group("/api/library")
 
-	// Auth routes (no auth required)
-	authRoutes := api.Group("/auth")
-	authRoutes.Post("/login", h.login)
-	authRoutes.Post("/register", h.register)
-	authRoutes.Post("/logout", authMW, h.logout)
+	// Auth middleware for protected routes
+	authMiddleware := middleware.NewAuthMiddleware(h.repo, 24*time.Hour)
 
-	// User management routes (auth required)
-	userRoutes := api.Group("/users", authMW)
-	userRoutes.Get("/", h.listUsers)
-	userRoutes.Get("/me", h.getCurrentUser)
-	userRoutes.Get("/:id", h.getUserByID)
-	userRoutes.Put("/:id", h.updateUser)
-	userRoutes.Delete("/:id", h.deactivateUser)
-	userRoutes.Post("/", h.createUser)
-	userRoutes.Put("/:id/password", h.updateUserPassword)
-	userRoutes.Get("/role/:role", h.getUsersByRole)
+	authGroup := api.Group("/auth")
+	authGroup.Post("/login", h.login)
+	authGroup.Post("/logout", h.logout)
+	authGroup.Get("/me", authMiddleware, h.me)
 
-	// Reader management routes (auth required)
-	readerRoutes := api.Group("/readers", authMW)
-	readerRoutes.Get("/", h.listReaders)
-	readerRoutes.Get("/me", h.getCurrentReader)
-	readerRoutes.Get("/search", h.searchReaders)
-	readerRoutes.Get("/ticket/:ticket", h.getReaderByTicket)
-	readerRoutes.Get("/hall/:hallId", h.getReadersByHall)
-	readerRoutes.Get("/:id", h.getReaderByID)
-	readerRoutes.Post("/", h.createReader)
-	readerRoutes.Put("/:id", h.updateReader)
-	readerRoutes.Delete("/:id", h.deactivateReader)
+	// Books
+	booksGroup := api.Group("/books")
+	booksGroup.Get("/", h.getAllBooks)
+	booksGroup.Get("/search", h.searchBooks)
+	booksGroup.Get("/:id", h.getBookById)
+	booksGroup.Post("/", authMiddleware, h.createBook)
+	booksGroup.Put("/:id", authMiddleware, h.updateBook)
+	booksGroup.Get("/:id/authors", h.getBookAuthors)
+	booksGroup.Post("/:id/authors", authMiddleware, h.addBookAuthor)
+	booksGroup.Delete("/:id/authors/:authorId", authMiddleware, h.removeBookAuthor)
 
-	// Reading halls management routes (auth required)
-	hallRoutes := api.Group("/halls", authMW)
-	hallRoutes.Get("/", h.listReadingHalls)
-	hallRoutes.Get("/statistics", h.getHallStatistics)
-	hallRoutes.Get("/:id", h.getReadingHallByID)
-	hallRoutes.Post("/", h.createReadingHall)
-	hallRoutes.Put("/:id", h.updateReadingHall)
-	hallRoutes.Delete("/:id", h.deleteReadingHall)
-	hallRoutes.Put("/:id/occupancy", h.updateHallOccupancy)
+	// Book copies
+	copiesGroup := api.Group("/copies")
+	copiesGroup.Get("/book/:bookId", h.getBookCopiesByBookId)
+	copiesGroup.Get("/hall/:hallId", h.getBookCopiesByHall)
+	copiesGroup.Get("/code/:copyCode", h.getBookCopyByCode)
+	copiesGroup.Get("/:id", h.getBookCopyById)
+	copiesGroup.Post("/", authMiddleware, h.createBookCopy)
+	copiesGroup.Put("/:id/status", authMiddleware, h.updateBookCopyStatus)
 
-	// Authors management routes (auth required)
-	authorRoutes := api.Group("/authors", authMW)
-	authorRoutes.Get("/", h.listAuthors)
-	authorRoutes.Get("/search", h.searchAuthors)
-	authorRoutes.Get("/:id", h.getAuthorByID)
-	authorRoutes.Get("/:id/books", h.getAuthorBooks)
-	authorRoutes.Post("/", h.createAuthor)
-	authorRoutes.Put("/:id", h.updateAuthor)
-	authorRoutes.Delete("/:id", h.deleteAuthor)
+	// Authors
+	authorsGroup := api.Group("/authors")
+	authorsGroup.Get("/", h.getAllAuthors)
+	authorsGroup.Get("/search", h.searchAuthors)
+	authorsGroup.Get("/:id", h.getAuthorById)
+	authorsGroup.Post("/", authMiddleware, h.createAuthor)
+	authorsGroup.Get("/:id/books", h.getAuthorBooks)
 
-	// Fines management routes (auth required)
-	fineRoutes := api.Group("/fines", authMW)
-	fineRoutes.Get("/", h.listFines)
-	fineRoutes.Get("/unpaid", h.getUnpaidFines)
-	fineRoutes.Get("/statistics", h.getFineStatistics)
-	fineRoutes.Get("/my", h.getMyFines)
-	fineRoutes.Get("/reader/:readerId", h.getFinesByReader)
-	fineRoutes.Get("/reader/:readerId/unpaid", h.getUnpaidFinesByReader)
-	fineRoutes.Get("/reader/:readerId/debt", h.getReaderDebt)
-	fineRoutes.Get("/:id", h.getFineByID)
-	fineRoutes.Post("/", h.createFine)
-	fineRoutes.Put("/:id", h.updateFine)
-	fineRoutes.Post("/:id/pay", h.payFine)
-	fineRoutes.Delete("/:id", h.deleteFine)
+	// Readers
+	readersGroup := api.Group("/readers")
+	readersGroup.Get("/", authMiddleware, h.getActiveReaders)
+	readersGroup.Get("/search", authMiddleware, h.searchReaders)
+	readersGroup.Get("/:id", authMiddleware, h.getReaderById)
+	readersGroup.Get("/ticket/:ticketNumber", authMiddleware, h.getReaderByTicketNumber)
+	readersGroup.Post("/", authMiddleware, h.createReader)
+	readersGroup.Put("/:id", authMiddleware, h.updateReader)
+	readersGroup.Delete("/:id", authMiddleware, h.deactivateReader)
+	readersGroup.Get("/:id/books", authMiddleware, h.getReaderActiveBooks)
+	readersGroup.Get("/:id/fines", authMiddleware, h.getReaderFines)
+	readersGroup.Get("/:id/visits", authMiddleware, h.getReaderVisitHistory)
 
-	// Books management routes (auth required)
-	bookRoutes := api.Group("/books", authMW)
-	bookRoutes.Get("/", h.listBooks)
-	bookRoutes.Get("/search", h.searchBooks)
-	bookRoutes.Get("/top-rated", h.getTopRatedBooks)
-	bookRoutes.Get("/author/:authorId", h.getBooksByAuthor)
-	bookRoutes.Get("/isbn/:isbn", h.getBookByISBN)
-	bookRoutes.Get("/:id", h.getBookByID)
-	bookRoutes.Get("/:id/details", h.getBookWithDetails)
-	bookRoutes.Get("/:id/authors", h.getBookAuthors)
-	bookRoutes.Post("/", h.createBook)
-	bookRoutes.Put("/:id", h.updateBook)
-	bookRoutes.Put("/:id/availability", h.updateBookAvailability)
-	bookRoutes.Post("/:id/authors", h.addBookAuthor)
-	bookRoutes.Delete("/:id/authors/:authorId", h.removeBookAuthor)
-	bookRoutes.Delete("/:id/authors", h.removeAllBookAuthors)
-	bookRoutes.Delete("/:id", h.deleteBook)
+	// Book issues
+	issuesGroup := api.Group("/issues")
+	issuesGroup.Get("/", authMiddleware, h.getBooksToReturn)
+	issuesGroup.Get("/overdue", authMiddleware, h.getOverdueBooks)
+	issuesGroup.Get("/recent", authMiddleware, h.getRecentBookOperations)
+	issuesGroup.Post("/", authMiddleware, h.issueBook)
+	issuesGroup.Post("/return", authMiddleware, h.returnBook)
 
-	// Book copies management routes (auth required)
-	copyRoutes := api.Group("/copies", authMW)
-	copyRoutes.Get("/", h.listBookCopies)
-	copyRoutes.Get("/available", h.listAvailableBookCopies)
-	copyRoutes.Get("/status/:status", h.getBookCopiesByStatus)
-	copyRoutes.Get("/book/:bookId", h.getBookCopiesByBook)
-	copyRoutes.Get("/code/:code", h.getBookCopyByCode)
-	copyRoutes.Get("/:id", h.getBookCopyByID)
-	copyRoutes.Get("/:id/history", h.getBookCopyHistory)
-	copyRoutes.Post("/", h.createBookCopy)
-	copyRoutes.Put("/:id", h.updateBookCopy)
-	copyRoutes.Put("/:id/status", h.updateBookCopyStatus)
-	copyRoutes.Delete("/:id", h.deleteBookCopy)
+	// Reading halls
+	hallsGroup := api.Group("/halls")
+	hallsGroup.Get("/", h.getAllReadingHalls)
+	hallsGroup.Get("/dashboard", authMiddleware, h.getHallsDashboard)
+	hallsGroup.Get("/:id", h.getReadingHallById)
+	hallsGroup.Post("/", authMiddleware, h.createReadingHall)
+	hallsGroup.Put("/:id", authMiddleware, h.updateReadingHall)
+	hallsGroup.Get("/:id/visits/stats/daily", authMiddleware, h.getDailyVisitStats)
+	hallsGroup.Get("/:id/visits/stats/hourly", authMiddleware, h.getHourlyVisitStats)
 
-	// Book ratings management routes (auth required)
-	ratingRoutes := api.Group("/ratings", authMW)
-	ratingRoutes.Get("/my", h.getMyRatings)
-	ratingRoutes.Get("/reader/:readerId", h.getReaderRatings)
-	ratingRoutes.Get("/book/:bookId", h.getBookRatings)
-	ratingRoutes.Get("/book/:bookId/average", h.getBookAverageRating)
-	ratingRoutes.Get("/book/:bookId/my", h.getMyBookRating)
-	ratingRoutes.Get("/:id", h.getRatingByID)
-	ratingRoutes.Post("/", h.createRating)
-	ratingRoutes.Put("/:id", h.updateRating)
-	ratingRoutes.Delete("/:id", h.deleteRating)
+	// Hall visits
+	visitsGroup := api.Group("/visits")
+	visitsGroup.Get("/recent", authMiddleware, h.getRecentHallVisits)
+	visitsGroup.Post("/entry", authMiddleware, h.registerHallEntry)
+	visitsGroup.Post("/exit", authMiddleware, h.registerHallExit)
 
-	// Book issues management routes (auth required)
-	issueRoutes := api.Group("/issues", authMW)
-	issueRoutes.Get("/", h.listIssues)
-	issueRoutes.Get("/active", h.getActiveIssues)
-	issueRoutes.Get("/overdue", h.getOverdueIssues)
-	issueRoutes.Get("/due-soon", h.getIssuesDueSoon)
-	issueRoutes.Get("/my", h.getMyIssues)
-	issueRoutes.Get("/my/active", h.getMyActiveIssues)
-	issueRoutes.Get("/my/history", h.getMyIssueHistory)
-	issueRoutes.Get("/reader/:readerId", h.getReaderIssues)
-	issueRoutes.Get("/reader/:readerId/active", h.getActiveIssuesByReader)
-	issueRoutes.Get("/reader/:readerId/history", h.getReaderIssueHistory)
-	issueRoutes.Get("/copy/:copyId/history", h.getBookCopyHistory)
-	issueRoutes.Get("/:id", h.getIssueByID)
-	issueRoutes.Post("/", h.createIssue)
-	issueRoutes.Put("/:id", h.updateIssue)
-	issueRoutes.Post("/:id/extend", h.extendIssue)
-	issueRoutes.Post("/:id/return", h.returnBook)
+	// Fines
+	finesGroup := api.Group("/fines")
+	finesGroup.Get("/unpaid", authMiddleware, h.getUnpaidFines)
+	finesGroup.Post("/", authMiddleware, h.createFine)
+	finesGroup.Post("/:id/pay", authMiddleware, h.payFine)
+
+	// Users
+	usersGroup := api.Group("/users")
+	usersGroup.Get("/", authMiddleware, h.getAllUsers)
+	usersGroup.Get("/:id", authMiddleware, h.getUserById)
+	usersGroup.Post("/", authMiddleware, h.createUser)
+	usersGroup.Put("/:id", authMiddleware, h.updateUser)
+	usersGroup.Delete("/:id", authMiddleware, h.deactivateUser)
 
 	return app
 }
 
 func (h *Handler) healthCheck(c *fiber.Ctx) error {
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "healthy"})
+	return c.JSON(fiber.Map{
+		"status":  "ok",
+		"service": "library",
+	})
 }

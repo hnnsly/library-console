@@ -12,169 +12,19 @@ import (
 	"github.com/google/uuid"
 )
 
-const countActiveIssuesByReader = `-- name: CountActiveIssuesByReader :one
-SELECT COUNT(*) FROM book_issues
-WHERE reader_id = $1 AND return_date IS NULL
-`
-
-func (q *Queries) CountActiveIssuesByReader(ctx context.Context, readerID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countActiveIssuesByReader, readerID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countOverdueIssues = `-- name: CountOverdueIssues :one
-SELECT COUNT(*) FROM book_issues
-WHERE return_date IS NULL AND due_date < CURRENT_DATE
-`
-
-func (q *Queries) CountOverdueIssues(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countOverdueIssues)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const createBookIssue = `-- name: CreateBookIssue :one
-INSERT INTO book_issues (reader_id, book_copy_id, issue_date, due_date, librarian_id, notes)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, reader_id, book_copy_id, issue_date, due_date, return_date, extended_count, librarian_id, notes, created_at, updated_at
-`
-
-type CreateBookIssueParams struct {
-	ReaderID    uuid.UUID  `json:"reader_id"`
-	BookCopyID  uuid.UUID  `json:"book_copy_id"`
-	IssueDate   *time.Time `json:"issue_date"`
-	DueDate     time.Time  `json:"due_date"`
-	LibrarianID *uuid.UUID `json:"librarian_id"`
-	Notes       *string    `json:"notes"`
-}
-
-func (q *Queries) CreateBookIssue(ctx context.Context, arg CreateBookIssueParams) (*BookIssue, error) {
-	row := q.db.QueryRow(ctx, createBookIssue,
-		arg.ReaderID,
-		arg.BookCopyID,
-		arg.IssueDate,
-		arg.DueDate,
-		arg.LibrarianID,
-		arg.Notes,
-	)
-	var i BookIssue
-	err := row.Scan(
-		&i.ID,
-		&i.ReaderID,
-		&i.BookCopyID,
-		&i.IssueDate,
-		&i.DueDate,
-		&i.ReturnDate,
-		&i.ExtendedCount,
-		&i.LibrarianID,
-		&i.Notes,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return &i, err
-}
-
-const extendBookIssue = `-- name: ExtendBookIssue :exec
-UPDATE book_issues
-SET
-    due_date = $1,
-    extended_count = extended_count + 1,
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = $2
-`
-
-type ExtendBookIssueParams struct {
-	NewDueDate time.Time `json:"new_due_date"`
-	IssueID    uuid.UUID `json:"issue_id"`
-}
-
-func (q *Queries) ExtendBookIssue(ctx context.Context, arg ExtendBookIssueParams) error {
-	_, err := q.db.Exec(ctx, extendBookIssue, arg.NewDueDate, arg.IssueID)
-	return err
-}
-
-const getActiveIssuesByReader = `-- name: GetActiveIssuesByReader :many
+const getBooksToReturn = `-- name: GetBooksToReturn :many
 SELECT
-    bi.id, bi.reader_id, bi.book_copy_id, bi.issue_date, bi.due_date, bi.return_date, bi.extended_count, bi.librarian_id, bi.notes, bi.created_at, bi.updated_at,
-    b.title as book_title,
-    bc.copy_code,
-    CASE
-        WHEN bi.due_date < CURRENT_DATE THEN (CURRENT_DATE - bi.due_date)
-        ELSE 0
-    END as overdue_days
-FROM book_issues bi
-JOIN book_copies bc ON bi.book_copy_id = bc.id
-JOIN books b ON bc.book_id = b.id
-WHERE bi.reader_id = $1 AND bi.return_date IS NULL
-ORDER BY bi.due_date
-`
-
-type GetActiveIssuesByReaderRow struct {
-	ID            uuid.UUID  `json:"id"`
-	ReaderID      uuid.UUID  `json:"reader_id"`
-	BookCopyID    uuid.UUID  `json:"book_copy_id"`
-	IssueDate     *time.Time `json:"issue_date"`
-	DueDate       time.Time  `json:"due_date"`
-	ReturnDate    *time.Time `json:"return_date"`
-	ExtendedCount *int       `json:"extended_count"`
-	LibrarianID   *uuid.UUID `json:"librarian_id"`
-	Notes         *string    `json:"notes"`
-	CreatedAt     *time.Time `json:"created_at"`
-	UpdatedAt     *time.Time `json:"updated_at"`
-	BookTitle     string     `json:"book_title"`
-	CopyCode      string     `json:"copy_code"`
-	OverdueDays   int32      `json:"overdue_days"`
-}
-
-func (q *Queries) GetActiveIssuesByReader(ctx context.Context, readerID uuid.UUID) ([]*GetActiveIssuesByReaderRow, error) {
-	rows, err := q.db.Query(ctx, getActiveIssuesByReader, readerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []*GetActiveIssuesByReaderRow{}
-	for rows.Next() {
-		var i GetActiveIssuesByReaderRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.ReaderID,
-			&i.BookCopyID,
-			&i.IssueDate,
-			&i.DueDate,
-			&i.ReturnDate,
-			&i.ExtendedCount,
-			&i.LibrarianID,
-			&i.Notes,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.BookTitle,
-			&i.CopyCode,
-			&i.OverdueDays,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getAllActiveIssues = `-- name: GetAllActiveIssues :many
-SELECT
-    bi.id, bi.reader_id, bi.book_copy_id, bi.issue_date, bi.due_date, bi.return_date, bi.extended_count, bi.librarian_id, bi.notes, bi.created_at, bi.updated_at,
-    r.full_name as reader_name,
+    bi.id,
     r.ticket_number,
-    b.title as book_title,
+    r.full_name as reader_name,
+    b.title,
     bc.copy_code,
+    bi.issue_date,
+    bi.due_date,
     CASE
         WHEN bi.due_date < CURRENT_DATE THEN (CURRENT_DATE - bi.due_date)
         ELSE 0
-    END as overdue_days
+    END as days_overdue
 FROM book_issues bi
 JOIN readers r ON bi.reader_id = r.id
 JOIN book_copies bc ON bi.book_copy_id = bc.id
@@ -183,51 +33,35 @@ WHERE bi.return_date IS NULL
 ORDER BY bi.due_date
 `
 
-type GetAllActiveIssuesRow struct {
-	ID            uuid.UUID  `json:"id"`
-	ReaderID      uuid.UUID  `json:"reader_id"`
-	BookCopyID    uuid.UUID  `json:"book_copy_id"`
-	IssueDate     *time.Time `json:"issue_date"`
-	DueDate       time.Time  `json:"due_date"`
-	ReturnDate    *time.Time `json:"return_date"`
-	ExtendedCount *int       `json:"extended_count"`
-	LibrarianID   *uuid.UUID `json:"librarian_id"`
-	Notes         *string    `json:"notes"`
-	CreatedAt     *time.Time `json:"created_at"`
-	UpdatedAt     *time.Time `json:"updated_at"`
-	ReaderName    string     `json:"reader_name"`
-	TicketNumber  string     `json:"ticket_number"`
-	BookTitle     string     `json:"book_title"`
-	CopyCode      string     `json:"copy_code"`
-	OverdueDays   int32      `json:"overdue_days"`
+type GetBooksToReturnRow struct {
+	ID           uuid.UUID  `json:"id"`
+	TicketNumber string     `json:"ticket_number"`
+	ReaderName   string     `json:"reader_name"`
+	Title        string     `json:"title"`
+	CopyCode     string     `json:"copy_code"`
+	IssueDate    *time.Time `json:"issue_date"`
+	DueDate      time.Time  `json:"due_date"`
+	DaysOverdue  int32      `json:"days_overdue"`
 }
 
-func (q *Queries) GetAllActiveIssues(ctx context.Context) ([]*GetAllActiveIssuesRow, error) {
-	rows, err := q.db.Query(ctx, getAllActiveIssues)
+func (q *Queries) GetBooksToReturn(ctx context.Context) ([]*GetBooksToReturnRow, error) {
+	rows, err := q.db.Query(ctx, getBooksToReturn)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*GetAllActiveIssuesRow{}
+	items := []*GetBooksToReturnRow{}
 	for rows.Next() {
-		var i GetAllActiveIssuesRow
+		var i GetBooksToReturnRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.ReaderID,
-			&i.BookCopyID,
+			&i.TicketNumber,
+			&i.ReaderName,
+			&i.Title,
+			&i.CopyCode,
 			&i.IssueDate,
 			&i.DueDate,
-			&i.ReturnDate,
-			&i.ExtendedCount,
-			&i.LibrarianID,
-			&i.Notes,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ReaderName,
-			&i.TicketNumber,
-			&i.BookTitle,
-			&i.CopyCode,
-			&i.OverdueDays,
+			&i.DaysOverdue,
 		); err != nil {
 			return nil, err
 		}
@@ -239,273 +73,16 @@ func (q *Queries) GetAllActiveIssues(ctx context.Context) ([]*GetAllActiveIssues
 	return items, nil
 }
 
-const getBookIssueByID = `-- name: GetBookIssueByID :one
+const getOverdueBooks = `-- name: GetOverdueBooks :many
 SELECT
-    bi.id, bi.reader_id, bi.book_copy_id, bi.issue_date, bi.due_date, bi.return_date, bi.extended_count, bi.librarian_id, bi.notes, bi.created_at, bi.updated_at,
-    r.full_name as reader_name,
+    bi.id,
     r.ticket_number,
-    b.title as book_title,
+    r.full_name as reader_name,
+    b.title,
     bc.copy_code,
-    u.username as librarian_name
-FROM book_issues bi
-JOIN readers r ON bi.reader_id = r.id
-JOIN book_copies bc ON bi.book_copy_id = bc.id
-JOIN books b ON bc.book_id = b.id
-LEFT JOIN users u ON bi.librarian_id = u.id
-WHERE bi.id = $1
-`
-
-type GetBookIssueByIDRow struct {
-	ID            uuid.UUID  `json:"id"`
-	ReaderID      uuid.UUID  `json:"reader_id"`
-	BookCopyID    uuid.UUID  `json:"book_copy_id"`
-	IssueDate     *time.Time `json:"issue_date"`
-	DueDate       time.Time  `json:"due_date"`
-	ReturnDate    *time.Time `json:"return_date"`
-	ExtendedCount *int       `json:"extended_count"`
-	LibrarianID   *uuid.UUID `json:"librarian_id"`
-	Notes         *string    `json:"notes"`
-	CreatedAt     *time.Time `json:"created_at"`
-	UpdatedAt     *time.Time `json:"updated_at"`
-	ReaderName    string     `json:"reader_name"`
-	TicketNumber  string     `json:"ticket_number"`
-	BookTitle     string     `json:"book_title"`
-	CopyCode      string     `json:"copy_code"`
-	LibrarianName *string    `json:"librarian_name"`
-}
-
-func (q *Queries) GetBookIssueByID(ctx context.Context, issueID uuid.UUID) (*GetBookIssueByIDRow, error) {
-	row := q.db.QueryRow(ctx, getBookIssueByID, issueID)
-	var i GetBookIssueByIDRow
-	err := row.Scan(
-		&i.ID,
-		&i.ReaderID,
-		&i.BookCopyID,
-		&i.IssueDate,
-		&i.DueDate,
-		&i.ReturnDate,
-		&i.ExtendedCount,
-		&i.LibrarianID,
-		&i.Notes,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ReaderName,
-		&i.TicketNumber,
-		&i.BookTitle,
-		&i.CopyCode,
-		&i.LibrarianName,
-	)
-	return &i, err
-}
-
-const getBookIssueHistory = `-- name: GetBookIssueHistory :many
-SELECT
-    bi.id, bi.reader_id, bi.book_copy_id, bi.issue_date, bi.due_date, bi.return_date, bi.extended_count, bi.librarian_id, bi.notes, bi.created_at, bi.updated_at,
-    r.full_name as reader_name,
-    r.ticket_number
-FROM book_issues bi
-JOIN readers r ON bi.reader_id = r.id
-WHERE bi.book_copy_id = $1
-ORDER BY bi.created_at DESC
-`
-
-type GetBookIssueHistoryRow struct {
-	ID            uuid.UUID  `json:"id"`
-	ReaderID      uuid.UUID  `json:"reader_id"`
-	BookCopyID    uuid.UUID  `json:"book_copy_id"`
-	IssueDate     *time.Time `json:"issue_date"`
-	DueDate       time.Time  `json:"due_date"`
-	ReturnDate    *time.Time `json:"return_date"`
-	ExtendedCount *int       `json:"extended_count"`
-	LibrarianID   *uuid.UUID `json:"librarian_id"`
-	Notes         *string    `json:"notes"`
-	CreatedAt     *time.Time `json:"created_at"`
-	UpdatedAt     *time.Time `json:"updated_at"`
-	ReaderName    string     `json:"reader_name"`
-	TicketNumber  string     `json:"ticket_number"`
-}
-
-func (q *Queries) GetBookIssueHistory(ctx context.Context, copyID uuid.UUID) ([]*GetBookIssueHistoryRow, error) {
-	rows, err := q.db.Query(ctx, getBookIssueHistory, copyID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []*GetBookIssueHistoryRow{}
-	for rows.Next() {
-		var i GetBookIssueHistoryRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.ReaderID,
-			&i.BookCopyID,
-			&i.IssueDate,
-			&i.DueDate,
-			&i.ReturnDate,
-			&i.ExtendedCount,
-			&i.LibrarianID,
-			&i.Notes,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ReaderName,
-			&i.TicketNumber,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getIssueDueSoon = `-- name: GetIssueDueSoon :many
-SELECT
-    bi.id, bi.reader_id, bi.book_copy_id, bi.issue_date, bi.due_date, bi.return_date, bi.extended_count, bi.librarian_id, bi.notes, bi.created_at, bi.updated_at,
-    r.full_name as reader_name,
-    r.ticket_number,
-    b.title as book_title,
-    bc.copy_code
-FROM book_issues bi
-JOIN readers r ON bi.reader_id = r.id
-JOIN book_copies bc ON bi.book_copy_id = bc.id
-JOIN books b ON bc.book_id = b.id
-WHERE bi.return_date IS NULL
-AND bi.due_date BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '@days_ahead days')
-ORDER BY bi.due_date
-`
-
-type GetIssueDueSoonRow struct {
-	ID            uuid.UUID  `json:"id"`
-	ReaderID      uuid.UUID  `json:"reader_id"`
-	BookCopyID    uuid.UUID  `json:"book_copy_id"`
-	IssueDate     *time.Time `json:"issue_date"`
-	DueDate       time.Time  `json:"due_date"`
-	ReturnDate    *time.Time `json:"return_date"`
-	ExtendedCount *int       `json:"extended_count"`
-	LibrarianID   *uuid.UUID `json:"librarian_id"`
-	Notes         *string    `json:"notes"`
-	CreatedAt     *time.Time `json:"created_at"`
-	UpdatedAt     *time.Time `json:"updated_at"`
-	ReaderName    string     `json:"reader_name"`
-	TicketNumber  string     `json:"ticket_number"`
-	BookTitle     string     `json:"book_title"`
-	CopyCode      string     `json:"copy_code"`
-}
-
-func (q *Queries) GetIssueDueSoon(ctx context.Context) ([]*GetIssueDueSoonRow, error) {
-	rows, err := q.db.Query(ctx, getIssueDueSoon)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []*GetIssueDueSoonRow{}
-	for rows.Next() {
-		var i GetIssueDueSoonRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.ReaderID,
-			&i.BookCopyID,
-			&i.IssueDate,
-			&i.DueDate,
-			&i.ReturnDate,
-			&i.ExtendedCount,
-			&i.LibrarianID,
-			&i.Notes,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ReaderName,
-			&i.TicketNumber,
-			&i.BookTitle,
-			&i.CopyCode,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getIssueHistory = `-- name: GetIssueHistory :many
-SELECT
-    bi.id, bi.reader_id, bi.book_copy_id, bi.issue_date, bi.due_date, bi.return_date, bi.extended_count, bi.librarian_id, bi.notes, bi.created_at, bi.updated_at,
-    b.title as book_title,
-    bc.copy_code
-FROM book_issues bi
-JOIN book_copies bc ON bi.book_copy_id = bc.id
-JOIN books b ON bc.book_id = b.id
-WHERE bi.reader_id = $1
-ORDER BY bi.created_at DESC
-LIMIT $3 OFFSET $2
-`
-
-type GetIssueHistoryParams struct {
-	ReaderID  uuid.UUID `json:"reader_id"`
-	OffsetVal int32     `json:"offset_val"`
-	LimitVal  int32     `json:"limit_val"`
-}
-
-type GetIssueHistoryRow struct {
-	ID            uuid.UUID  `json:"id"`
-	ReaderID      uuid.UUID  `json:"reader_id"`
-	BookCopyID    uuid.UUID  `json:"book_copy_id"`
-	IssueDate     *time.Time `json:"issue_date"`
-	DueDate       time.Time  `json:"due_date"`
-	ReturnDate    *time.Time `json:"return_date"`
-	ExtendedCount *int       `json:"extended_count"`
-	LibrarianID   *uuid.UUID `json:"librarian_id"`
-	Notes         *string    `json:"notes"`
-	CreatedAt     *time.Time `json:"created_at"`
-	UpdatedAt     *time.Time `json:"updated_at"`
-	BookTitle     string     `json:"book_title"`
-	CopyCode      string     `json:"copy_code"`
-}
-
-func (q *Queries) GetIssueHistory(ctx context.Context, arg GetIssueHistoryParams) ([]*GetIssueHistoryRow, error) {
-	rows, err := q.db.Query(ctx, getIssueHistory, arg.ReaderID, arg.OffsetVal, arg.LimitVal)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []*GetIssueHistoryRow{}
-	for rows.Next() {
-		var i GetIssueHistoryRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.ReaderID,
-			&i.BookCopyID,
-			&i.IssueDate,
-			&i.DueDate,
-			&i.ReturnDate,
-			&i.ExtendedCount,
-			&i.LibrarianID,
-			&i.Notes,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.BookTitle,
-			&i.CopyCode,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getOverdueIssues = `-- name: GetOverdueIssues :many
-SELECT
-    bi.id, bi.reader_id, bi.book_copy_id, bi.issue_date, bi.due_date, bi.return_date, bi.extended_count, bi.librarian_id, bi.notes, bi.created_at, bi.updated_at,
-    r.full_name as reader_name,
-    r.ticket_number,
-    b.title as book_title,
-    bc.copy_code,
-    (CURRENT_DATE - bi.due_date) as overdue_days
+    bi.issue_date,
+    bi.due_date,
+    (CURRENT_DATE - bi.due_date) as days_overdue
 FROM book_issues bi
 JOIN readers r ON bi.reader_id = r.id
 JOIN book_copies bc ON bi.book_copy_id = bc.id
@@ -514,51 +91,35 @@ WHERE bi.return_date IS NULL AND bi.due_date < CURRENT_DATE
 ORDER BY bi.due_date
 `
 
-type GetOverdueIssuesRow struct {
-	ID            uuid.UUID  `json:"id"`
-	ReaderID      uuid.UUID  `json:"reader_id"`
-	BookCopyID    uuid.UUID  `json:"book_copy_id"`
-	IssueDate     *time.Time `json:"issue_date"`
-	DueDate       time.Time  `json:"due_date"`
-	ReturnDate    *time.Time `json:"return_date"`
-	ExtendedCount *int       `json:"extended_count"`
-	LibrarianID   *uuid.UUID `json:"librarian_id"`
-	Notes         *string    `json:"notes"`
-	CreatedAt     *time.Time `json:"created_at"`
-	UpdatedAt     *time.Time `json:"updated_at"`
-	ReaderName    string     `json:"reader_name"`
-	TicketNumber  string     `json:"ticket_number"`
-	BookTitle     string     `json:"book_title"`
-	CopyCode      string     `json:"copy_code"`
-	OverdueDays   int32      `json:"overdue_days"`
+type GetOverdueBooksRow struct {
+	ID           uuid.UUID  `json:"id"`
+	TicketNumber string     `json:"ticket_number"`
+	ReaderName   string     `json:"reader_name"`
+	Title        string     `json:"title"`
+	CopyCode     string     `json:"copy_code"`
+	IssueDate    *time.Time `json:"issue_date"`
+	DueDate      time.Time  `json:"due_date"`
+	DaysOverdue  int32      `json:"days_overdue"`
 }
 
-func (q *Queries) GetOverdueIssues(ctx context.Context) ([]*GetOverdueIssuesRow, error) {
-	rows, err := q.db.Query(ctx, getOverdueIssues)
+func (q *Queries) GetOverdueBooks(ctx context.Context) ([]*GetOverdueBooksRow, error) {
+	rows, err := q.db.Query(ctx, getOverdueBooks)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*GetOverdueIssuesRow{}
+	items := []*GetOverdueBooksRow{}
 	for rows.Next() {
-		var i GetOverdueIssuesRow
+		var i GetOverdueBooksRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.ReaderID,
-			&i.BookCopyID,
+			&i.TicketNumber,
+			&i.ReaderName,
+			&i.Title,
+			&i.CopyCode,
 			&i.IssueDate,
 			&i.DueDate,
-			&i.ReturnDate,
-			&i.ExtendedCount,
-			&i.LibrarianID,
-			&i.Notes,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ReaderName,
-			&i.TicketNumber,
-			&i.BookTitle,
-			&i.CopyCode,
-			&i.OverdueDays,
+			&i.DaysOverdue,
 		); err != nil {
 			return nil, err
 		}
@@ -570,51 +131,188 @@ func (q *Queries) GetOverdueIssues(ctx context.Context) ([]*GetOverdueIssuesRow,
 	return items, nil
 }
 
-const returnBook = `-- name: ReturnBook :exec
-UPDATE book_issues
-SET return_date = $1, updated_at = CURRENT_TIMESTAMP
-WHERE id = $2
+const getReaderActiveBooks = `-- name: GetReaderActiveBooks :many
+SELECT
+    bi.id,
+    b.title,
+    bc.copy_code,
+    bi.issue_date,
+    bi.due_date
+FROM book_issues bi
+JOIN book_copies bc ON bi.book_copy_id = bc.id
+JOIN books b ON bc.book_id = b.id
+WHERE bi.reader_id = $1 AND bi.return_date IS NULL
+ORDER BY bi.due_date
 `
 
-type ReturnBookParams struct {
-	ReturnDate *time.Time `json:"return_date"`
-	IssueID    uuid.UUID  `json:"issue_id"`
+type GetReaderActiveBooksRow struct {
+	ID        uuid.UUID  `json:"id"`
+	Title     string     `json:"title"`
+	CopyCode  string     `json:"copy_code"`
+	IssueDate *time.Time `json:"issue_date"`
+	DueDate   time.Time  `json:"due_date"`
 }
 
-func (q *Queries) ReturnBook(ctx context.Context, arg ReturnBookParams) error {
-	_, err := q.db.Exec(ctx, returnBook, arg.ReturnDate, arg.IssueID)
-	return err
+func (q *Queries) GetReaderActiveBooks(ctx context.Context, readerID uuid.UUID) ([]*GetReaderActiveBooksRow, error) {
+	rows, err := q.db.Query(ctx, getReaderActiveBooks, readerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*GetReaderActiveBooksRow{}
+	for rows.Next() {
+		var i GetReaderActiveBooksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.CopyCode,
+			&i.IssueDate,
+			&i.DueDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
-const updateBookIssue = `-- name: UpdateBookIssue :one
-UPDATE book_issues
-SET
-    due_date = COALESCE($1, due_date),
-    return_date = COALESCE($2, return_date),
-    extended_count = COALESCE($3, extended_count),
-    notes = COALESCE($4, notes),
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = $5
-RETURNING id, reader_id, book_copy_id, issue_date, due_date, return_date, extended_count, librarian_id, notes, created_at, updated_at
+const getRecentBookOperations = `-- name: GetRecentBookOperations :many
+SELECT
+    'issue' as operation_type,
+    bi.created_at as operation_time,
+    r.full_name as reader_name,
+    r.ticket_number,
+    b.title as book_title,
+    bc.copy_code,
+    u.username as librarian_name,
+    bi.due_date::text as additional_info
+FROM book_issues bi
+JOIN readers r ON bi.reader_id = r.id
+JOIN book_copies bc ON bi.book_copy_id = bc.id
+JOIN books b ON bc.book_id = b.id
+LEFT JOIN users u ON bi.librarian_id = u.id
+WHERE bi.created_at >= $2
+
+UNION ALL
+
+SELECT
+    'return' as operation_type,
+    bi.updated_at as operation_time,
+    r.full_name as reader_name,
+    r.ticket_number,
+    b.title as book_title,
+    bc.copy_code,
+    u.username as librarian_name,
+    bi.return_date::text as additional_info
+FROM book_issues bi
+JOIN readers r ON bi.reader_id = r.id
+JOIN book_copies bc ON bi.book_copy_id = bc.id
+JOIN books b ON bc.book_id = b.id
+LEFT JOIN users u ON bi.librarian_id = u.id
+WHERE bi.return_date IS NOT NULL AND bi.updated_at >= $2
+
+ORDER BY operation_time DESC
+LIMIT $1
 `
 
-type UpdateBookIssueParams struct {
-	DueDate       time.Time  `json:"due_date"`
-	ReturnDate    *time.Time `json:"return_date"`
-	ExtendedCount *int       `json:"extended_count"`
-	Notes         *string    `json:"notes"`
-	IssueID       uuid.UUID  `json:"issue_id"`
+type GetRecentBookOperationsParams struct {
+	LimitCount int32      `json:"limit_count"`
+	SinceDate  *time.Time `json:"since_date"`
 }
 
-func (q *Queries) UpdateBookIssue(ctx context.Context, arg UpdateBookIssueParams) (*BookIssue, error) {
-	row := q.db.QueryRow(ctx, updateBookIssue,
+type GetRecentBookOperationsRow struct {
+	OperationType  string     `json:"operation_type"`
+	OperationTime  *time.Time `json:"operation_time"`
+	ReaderName     string     `json:"reader_name"`
+	TicketNumber   string     `json:"ticket_number"`
+	BookTitle      string     `json:"book_title"`
+	CopyCode       string     `json:"copy_code"`
+	LibrarianName  *string    `json:"librarian_name"`
+	AdditionalInfo string     `json:"additional_info"`
+}
+
+func (q *Queries) GetRecentBookOperations(ctx context.Context, arg GetRecentBookOperationsParams) ([]*GetRecentBookOperationsRow, error) {
+	rows, err := q.db.Query(ctx, getRecentBookOperations, arg.LimitCount, arg.SinceDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*GetRecentBookOperationsRow{}
+	for rows.Next() {
+		var i GetRecentBookOperationsRow
+		if err := rows.Scan(
+			&i.OperationType,
+			&i.OperationTime,
+			&i.ReaderName,
+			&i.TicketNumber,
+			&i.BookTitle,
+			&i.CopyCode,
+			&i.LibrarianName,
+			&i.AdditionalInfo,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const issueBook = `-- name: IssueBook :one
+INSERT INTO book_issues (reader_id, book_copy_id, due_date, librarian_id)
+VALUES ($1, $2, $3, $4)
+RETURNING id, issue_date, due_date
+`
+
+type IssueBookParams struct {
+	ReaderID    uuid.UUID  `json:"reader_id"`
+	BookCopyID  uuid.UUID  `json:"book_copy_id"`
+	DueDate     time.Time  `json:"due_date"`
+	LibrarianID *uuid.UUID `json:"librarian_id"`
+}
+
+type IssueBookRow struct {
+	ID        uuid.UUID  `json:"id"`
+	IssueDate *time.Time `json:"issue_date"`
+	DueDate   time.Time  `json:"due_date"`
+}
+
+func (q *Queries) IssueBook(ctx context.Context, arg IssueBookParams) (*IssueBookRow, error) {
+	row := q.db.QueryRow(ctx, issueBook,
+		arg.ReaderID,
+		arg.BookCopyID,
 		arg.DueDate,
-		arg.ReturnDate,
-		arg.ExtendedCount,
-		arg.Notes,
-		arg.IssueID,
+		arg.LibrarianID,
 	)
-	var i BookIssue
+	var i IssueBookRow
+	err := row.Scan(&i.ID, &i.IssueDate, &i.DueDate)
+	return &i, err
+}
+
+const returnBook = `-- name: ReturnBook :one
+UPDATE book_issues
+SET return_date = CURRENT_DATE
+WHERE book_copy_id = $1 AND return_date IS NULL
+RETURNING id, reader_id, book_copy_id, issue_date, due_date, return_date
+`
+
+type ReturnBookRow struct {
+	ID         uuid.UUID  `json:"id"`
+	ReaderID   uuid.UUID  `json:"reader_id"`
+	BookCopyID uuid.UUID  `json:"book_copy_id"`
+	IssueDate  *time.Time `json:"issue_date"`
+	DueDate    time.Time  `json:"due_date"`
+	ReturnDate *time.Time `json:"return_date"`
+}
+
+func (q *Queries) ReturnBook(ctx context.Context, bookCopyID uuid.UUID) (*ReturnBookRow, error) {
+	row := q.db.QueryRow(ctx, returnBook, bookCopyID)
+	var i ReturnBookRow
 	err := row.Scan(
 		&i.ID,
 		&i.ReaderID,
@@ -622,11 +320,6 @@ func (q *Queries) UpdateBookIssue(ctx context.Context, arg UpdateBookIssueParams
 		&i.IssueDate,
 		&i.DueDate,
 		&i.ReturnDate,
-		&i.ExtendedCount,
-		&i.LibrarianID,
-		&i.Notes,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return &i, err
 }

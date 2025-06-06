@@ -1,73 +1,27 @@
--- name: CreateBookIssue :one
-INSERT INTO book_issues (reader_id, book_copy_id, issue_date, due_date, librarian_id, notes)
-VALUES (@reader_id, @book_copy_id, @issue_date, @due_date, @librarian_id, @notes)
-RETURNING *;
+-- name: IssueBook :one
+INSERT INTO book_issues (reader_id, book_copy_id, due_date, librarian_id)
+VALUES (@reader_id, @book_copy_id, @due_date, @librarian_id)
+RETURNING id, issue_date, due_date;
 
--- name: GetBookIssueByID :one
+-- name: ReturnBook :one
+UPDATE book_issues
+SET return_date = CURRENT_DATE
+WHERE book_copy_id = @book_copy_id AND return_date IS NULL
+RETURNING id, reader_id, book_copy_id, issue_date, due_date, return_date;
+
+-- name: GetBooksToReturn :many
 SELECT
-    bi.*,
-    r.full_name as reader_name,
+    bi.id,
     r.ticket_number,
-    b.title as book_title,
+    r.full_name as reader_name,
+    b.title,
     bc.copy_code,
-    u.username as librarian_name
-FROM book_issues bi
-JOIN readers r ON bi.reader_id = r.id
-JOIN book_copies bc ON bi.book_copy_id = bc.id
-JOIN books b ON bc.book_id = b.id
-LEFT JOIN users u ON bi.librarian_id = u.id
-WHERE bi.id = @issue_id;
-
--- name: UpdateBookIssue :one
-UPDATE book_issues
-SET
-    due_date = COALESCE(@due_date, due_date),
-    return_date = COALESCE(@return_date, return_date),
-    extended_count = COALESCE(@extended_count, extended_count),
-    notes = COALESCE(@notes, notes),
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = @issue_id
-RETURNING *;
-
--- name: ReturnBook :exec
-UPDATE book_issues
-SET return_date = @return_date, updated_at = CURRENT_TIMESTAMP
-WHERE id = @issue_id;
-
--- name: ExtendBookIssue :exec
-UPDATE book_issues
-SET
-    due_date = @new_due_date,
-    extended_count = extended_count + 1,
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = @issue_id;
-
--- name: GetActiveIssuesByReader :many
-SELECT
-    bi.*,
-    b.title as book_title,
-    bc.copy_code,
+    bi.issue_date,
+    bi.due_date,
     CASE
         WHEN bi.due_date < CURRENT_DATE THEN (CURRENT_DATE - bi.due_date)
         ELSE 0
-    END as overdue_days
-FROM book_issues bi
-JOIN book_copies bc ON bi.book_copy_id = bc.id
-JOIN books b ON bc.book_id = b.id
-WHERE bi.reader_id = @reader_id AND bi.return_date IS NULL
-ORDER BY bi.due_date;
-
--- name: GetAllActiveIssues :many
-SELECT
-    bi.*,
-    r.full_name as reader_name,
-    r.ticket_number,
-    b.title as book_title,
-    bc.copy_code,
-    CASE
-        WHEN bi.due_date < CURRENT_DATE THEN (CURRENT_DATE - bi.due_date)
-        ELSE 0
-    END as overdue_days
+    END as days_overdue
 FROM book_issues bi
 JOIN readers r ON bi.reader_id = r.id
 JOIN book_copies bc ON bi.book_copy_id = bc.id
@@ -75,14 +29,16 @@ JOIN books b ON bc.book_id = b.id
 WHERE bi.return_date IS NULL
 ORDER BY bi.due_date;
 
--- name: GetOverdueIssues :many
+-- name: GetOverdueBooks :many
 SELECT
-    bi.*,
-    r.full_name as reader_name,
+    bi.id,
     r.ticket_number,
-    b.title as book_title,
+    r.full_name as reader_name,
+    b.title,
     bc.copy_code,
-    (CURRENT_DATE - bi.due_date) as overdue_days
+    bi.issue_date,
+    bi.due_date,
+    (CURRENT_DATE - bi.due_date) as days_overdue
 FROM book_issues bi
 JOIN readers r ON bi.reader_id = r.id
 JOIN book_copies bc ON bi.book_copy_id = bc.id
@@ -90,47 +46,53 @@ JOIN books b ON bc.book_id = b.id
 WHERE bi.return_date IS NULL AND bi.due_date < CURRENT_DATE
 ORDER BY bi.due_date;
 
--- name: GetIssueHistory :many
+-- name: GetReaderActiveBooks :many
 SELECT
-    bi.*,
-    b.title as book_title,
-    bc.copy_code
+    bi.id,
+    b.title,
+    bc.copy_code,
+    bi.issue_date,
+    bi.due_date
 FROM book_issues bi
 JOIN book_copies bc ON bi.book_copy_id = bc.id
 JOIN books b ON bc.book_id = b.id
-WHERE bi.reader_id = @reader_id
-ORDER BY bi.created_at DESC
-LIMIT @limit_val OFFSET @offset_val;
+WHERE bi.reader_id = @reader_id AND bi.return_date IS NULL
+ORDER BY bi.due_date;
 
--- name: GetBookIssueHistory :many
+-- name: GetRecentBookOperations :many
 SELECT
-    bi.*,
-    r.full_name as reader_name,
-    r.ticket_number
-FROM book_issues bi
-JOIN readers r ON bi.reader_id = r.id
-WHERE bi.book_copy_id = @copy_id
-ORDER BY bi.created_at DESC;
-
--- name: CountActiveIssuesByReader :one
-SELECT COUNT(*) FROM book_issues
-WHERE reader_id = @reader_id AND return_date IS NULL;
-
--- name: CountOverdueIssues :one
-SELECT COUNT(*) FROM book_issues
-WHERE return_date IS NULL AND due_date < CURRENT_DATE;
-
--- name: GetIssueDueSoon :many
-SELECT
-    bi.*,
+    'issue' as operation_type,
+    bi.created_at as operation_time,
     r.full_name as reader_name,
     r.ticket_number,
     b.title as book_title,
-    bc.copy_code
+    bc.copy_code,
+    u.username as librarian_name,
+    bi.due_date::text as additional_info
 FROM book_issues bi
 JOIN readers r ON bi.reader_id = r.id
 JOIN book_copies bc ON bi.book_copy_id = bc.id
 JOIN books b ON bc.book_id = b.id
-WHERE bi.return_date IS NULL
-AND bi.due_date BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '@days_ahead days')
-ORDER BY bi.due_date;
+LEFT JOIN users u ON bi.librarian_id = u.id
+WHERE bi.created_at >= @since_date
+
+UNION ALL
+
+SELECT
+    'return' as operation_type,
+    bi.updated_at as operation_time,
+    r.full_name as reader_name,
+    r.ticket_number,
+    b.title as book_title,
+    bc.copy_code,
+    u.username as librarian_name,
+    bi.return_date::text as additional_info
+FROM book_issues bi
+JOIN readers r ON bi.reader_id = r.id
+JOIN book_copies bc ON bi.book_copy_id = bc.id
+JOIN books b ON bc.book_id = b.id
+LEFT JOIN users u ON bi.librarian_id = u.id
+WHERE bi.return_date IS NOT NULL AND bi.updated_at >= @since_date
+
+ORDER BY operation_time DESC
+LIMIT @limit_count;

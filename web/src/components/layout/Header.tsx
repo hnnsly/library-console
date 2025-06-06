@@ -2,25 +2,43 @@ import React, { useState, useEffect } from "react";
 import { Bell, Search } from "lucide-react";
 import { motion } from "framer-motion";
 
+interface Notification {
+  id: string;
+  message: string;
+  type: "info" | "warning" | "error" | "success";
+  is_read: boolean;
+  created_at: Date;
+}
+
 const Header: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [notifications, setNotifications] = useState([
+  const [notifications, setNotifications] = useState<Notification[]>([
     {
-      id: 1,
+      id: "1",
       message: "Книга 'Война и мир' должна быть возвращена завтра",
-      isNew: true,
+      type: "warning",
+      is_read: false,
+      created_at: new Date(),
     },
-    { id: 2, message: "Новый читатель: Анна Иванова", isNew: true },
     {
-      id: 3,
+      id: "2",
+      message: "Новый читатель: Анна Иванова",
+      type: "info",
+      is_read: false,
+      created_at: new Date(),
+    },
+    {
+      id: "3",
       message: "Срок бронирования истек: 'Преступление и наказание'",
-      isNew: false,
+      type: "error",
+      is_read: true,
+      created_at: new Date(),
     },
   ]);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  const newNotificationsCount = notifications.filter((n) => n.isNew).length;
+  const newNotificationsCount = notifications.filter((n) => !n.is_read).length;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -38,7 +56,7 @@ const Header: React.FC = () => {
   const toggleNotifications = () => {
     setShowNotifications(!showNotifications);
     if (!showNotifications) {
-      setNotifications(notifications.map((n) => ({ ...n, isNew: false })));
+      setNotifications(notifications.map((n) => ({ ...n, is_read: true })));
     }
   };
 
@@ -94,12 +112,32 @@ const Header: React.FC = () => {
                       <li
                         key={notification.id}
                         className={`p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors ${
-                          notification.isNew ? "bg-blue-50" : ""
+                          !notification.is_read ? "bg-blue-50" : ""
                         }`}
                       >
-                        <p className="text-sm text-gray-700">
-                          {notification.message}
-                        </p>
+                        <div className="flex items-start">
+                          <div
+                            className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${
+                              notification.type === "error"
+                                ? "bg-red-500"
+                                : notification.type === "warning"
+                                  ? "bg-yellow-500"
+                                  : notification.type === "success"
+                                    ? "bg-green-500"
+                                    : "bg-blue-500"
+                            }`}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-gray-700">
+                              {notification.message}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {notification.created_at.toLocaleTimeString(
+                                "ru-RU",
+                              )}
+                            </p>
+                          </div>
+                        </div>
                       </li>
                     ))}
                   </ul>

@@ -14,7 +14,6 @@ sql:
         emit_result_struct_pointers: true
         emit_pointers_for_null_types: true
         overrides:
-          # Базовые типы для int4 и int8
           - db_type: "pg_catalog.int4"
             go_type: "int"
           - db_type: "pg_catalog.int8"

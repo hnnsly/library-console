@@ -1,70 +1,46 @@
 -- name: CreateReader :one
-INSERT INTO readers (user_id, ticket_number, full_name, birth_date, phone, education, reading_hall_id)
-VALUES (@user_id, @ticket_number, @full_name, @birth_date, @phone, @education, @reading_hall_id)
-RETURNING *;
-
--- name: GetReaderByID :one
-SELECT r.*, u.username, u.email, rh.hall_name, rh.specialization
-FROM readers r
-JOIN users u ON r.user_id = u.id
-LEFT JOIN reading_halls rh ON r.reading_hall_id = rh.id
-WHERE r.id = @reader_id AND r.is_active = true;
-
--- name: GetReaderByUserID :one
-SELECT r.*, rh.hall_name, rh.specialization
-FROM readers r
-LEFT JOIN reading_halls rh ON r.reading_hall_id = rh.id
-WHERE r.user_id = @user_id AND r.is_active = true;
-
--- name: GetReaderByTicketNumber :one
-SELECT r.*, u.username, u.email, rh.hall_name, rh.specialization
-FROM readers r
-JOIN users u ON r.user_id = u.id
-LEFT JOIN reading_halls rh ON r.reading_hall_id = rh.id
-WHERE r.ticket_number = @ticket_number AND r.is_active = true;
+INSERT INTO readers (ticket_number, full_name, email, phone)
+VALUES (@ticket_number, @full_name, @email, @phone)
+RETURNING id, ticket_number, created_at;
 
 -- name: UpdateReader :one
 UPDATE readers
-SET
-    full_name = COALESCE(@full_name, full_name),
-    phone = COALESCE(@phone, phone),
-    education = COALESCE(@education, education),
-    reading_hall_id = COALESCE(@reading_hall_id, reading_hall_id),
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = @reader_id
-RETURNING *;
+SET full_name = @full_name, email = @email, phone = @phone
+WHERE id = @id
+RETURNING id, ticket_number, full_name, email, phone;
 
 -- name: DeactivateReader :exec
 UPDATE readers
-SET is_active = false, updated_at = CURRENT_TIMESTAMP
-WHERE id = @reader_id;
+SET is_active = false
+WHERE id = @id;
 
--- name: ListReadersByHall :many
-SELECT r.*, u.username, u.email
-FROM readers r
-JOIN users u ON r.user_id = u.id
-WHERE r.reading_hall_id = @hall_id AND r.is_active = true
-ORDER BY r.full_name;
+-- name: GetReaderByTicketNumber :one
+SELECT id, ticket_number, full_name, email, phone, is_active, registration_date
+FROM readers
+WHERE ticket_number = @ticket_number;
 
--- name: ListAllReaders :many
-SELECT r.*, u.username, u.email, rh.hall_name
-FROM readers r
-JOIN users u ON r.user_id = u.id
-LEFT JOIN reading_halls rh ON r.reading_hall_id = rh.id
-WHERE r.is_active = true
-ORDER BY r.created_at DESC
-LIMIT @limit_val OFFSET @offset_val;
+-- name: GetReaderById :one
+SELECT id, ticket_number, full_name, email, phone, is_active, registration_date
+FROM readers
+WHERE id = @id;
 
--- name: SearchReadersByName :many
-SELECT r.*, u.username, u.email, rh.hall_name
-FROM readers r
-JOIN users u ON r.user_id = u.id
-LEFT JOIN reading_halls rh ON r.reading_hall_id = rh.id
-WHERE r.full_name ILIKE '%' || @search_query || '%' AND r.is_active = true
-ORDER BY r.full_name;
+-- name: SearchReaders :many
+SELECT id, ticket_number, full_name, email, phone, is_active, registration_date
+FROM readers
+WHERE (full_name ILIKE '%' || @search_term || '%'
+    OR ticket_number ILIKE '%' || @search_term || '%')
+  AND (@include_inactive::boolean OR is_active = true)
+ORDER BY full_name;
 
--- name: CountReaders :one
-SELECT COUNT(*) FROM readers WHERE is_active = true;
+-- name: GetActiveReaders :many
+SELECT id, ticket_number, full_name, email, phone, registration_date
+FROM readers
+WHERE is_active = true
+ORDER BY full_name;
 
--- name: CountReadersByHall :one
-SELECT COUNT(*) FROM readers WHERE reading_hall_id = @hall_id AND is_active = true;
+-- name: CheckReaderOverdueBooks :one
+SELECT COUNT(*) as overdue_books
+FROM book_issues bi
+WHERE bi.reader_id = @reader_id
+  AND bi.return_date IS NULL
+  AND bi.due_date < CURRENT_DATE;

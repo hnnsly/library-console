@@ -10,16 +10,95 @@ import {
   User,
   DoorOpen,
   DoorClosed,
+  Building2,
 } from "lucide-react";
-import { members, rooms, todayVisitors, hourlyStats } from "../data/mockData";
+import {
+  readers,
+  readingHalls,
+  hallVisits,
+  hourlyStats,
+} from "../data/mockData";
+import type { Reader, ReadingHall, HallVisit } from "../types";
+
+interface VisitorData {
+  id: string;
+  readerId: string;
+  readerName: string;
+  ticketNumber: string;
+  entryTime: Date;
+  exitTime?: Date;
+  status: "in" | "out";
+  hallId: string;
+  hallName: string;
+}
 
 const RoomOverview: React.FC = () => {
   const [selectedDate] = useState(new Date());
 
+  // Обработка посещений для получения текущего состояния
+  const processVisits = (): VisitorData[] => {
+    const visitorMap = new Map<string, VisitorData>();
+
+    // Сортируем посещения по времени
+    const sortedVisits = [...hallVisits].sort(
+      (a, b) =>
+        new Date(a.visit_time).getTime() - new Date(b.visit_time).getTime(),
+    );
+
+    sortedVisits.forEach((visit) => {
+      const reader = readers.find((r) => r.id === visit.reader_id);
+      const hall = readingHalls.find((h) => h.id === visit.hall_id);
+
+      if (!reader || !hall) return;
+
+      const key = `${visit.reader_id}-${visit.hall_id}`;
+
+      if (visit.visit_type === "entry") {
+        visitorMap.set(key, {
+          id: visit.id,
+          readerId: reader.id,
+          readerName: reader.full_name,
+          ticketNumber: reader.ticket_number,
+          entryTime: new Date(visit.visit_time),
+          status: "in",
+          hallId: hall.id,
+          hallName: hall.hall_name,
+        });
+      } else if (visit.visit_type === "exit") {
+        const existingVisit = visitorMap.get(key);
+        if (existingVisit) {
+          existingVisit.exitTime = new Date(visit.visit_time);
+          existingVisit.status = "out";
+        }
+      }
+    });
+
+    return Array.from(visitorMap.values()).sort(
+      (a, b) => b.entryTime.getTime() - a.entryTime.getTime(),
+    );
+  };
+
+  const todayVisitors = processVisits();
+
+  // Подсчет текущих посетителей по залам
+  const getCurrentOccupancy = (hallId: string): number => {
+    return todayVisitors.filter((v) => v.hallId === hallId && v.status === "in")
+      .length;
+  };
+
+  // Обновляем данные о залах с текущей загруженностью
+  const roomsWithOccupancy = readingHalls.map((hall) => ({
+    ...hall,
+    currentOccupancy: getCurrentOccupancy(hall.id),
+  }));
+
   const maxVisitors = Math.max(...hourlyStats.map((h) => h.visitors));
-  const totalCapacity = rooms.reduce((sum, room) => sum + room.capacity, 0);
-  const totalOccupancy = rooms.reduce(
-    (sum, room) => sum + room.currentOccupancy,
+  const totalCapacity = readingHalls.reduce(
+    (sum, hall) => sum + hall.total_seats,
+    0,
+  );
+  const totalOccupancy = roomsWithOccupancy.reduce(
+    (sum, hall) => sum + hall.currentOccupancy,
     0,
   );
   const currentVisitors = todayVisitors.filter((v) => v.status === "in").length;
@@ -65,13 +144,16 @@ const RoomOverview: React.FC = () => {
           <motion.div variants={itemVariants} className="card p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-primary-100 text-primary-600">
-                <Users size={24} />
+                <Building2 size={24} />
               </div>
               <div className="ml-4">
                 <h3 className="text-sm font-medium text-gray-500">
                   Всего мест
                 </h3>
                 <p className="text-2xl font-semibold">{totalCapacity}</p>
+                <p className="text-xs text-gray-500">
+                  в {readingHalls.length} залах
+                </p>
               </div>
             </div>
           </motion.div>
@@ -86,6 +168,7 @@ const RoomOverview: React.FC = () => {
                   Сейчас в залах
                 </h3>
                 <p className="text-2xl font-semibold">{currentVisitors}</p>
+                <p className="text-xs text-gray-500">активных посетителей</p>
               </div>
             </div>
           </motion.div>
@@ -100,8 +183,12 @@ const RoomOverview: React.FC = () => {
                   Загруженность
                 </h3>
                 <p className="text-2xl font-semibold">
-                  {Math.round((totalOccupancy / totalCapacity) * 100)}%
+                  {totalCapacity > 0
+                    ? Math.round((totalOccupancy / totalCapacity) * 100)
+                    : 0}
+                  %
                 </p>
+                <p className="text-xs text-gray-500">общая по всем залам</p>
               </div>
             </div>
           </motion.div>
@@ -116,6 +203,7 @@ const RoomOverview: React.FC = () => {
                   Посещений сегодня
                 </h3>
                 <p className="text-2xl font-semibold">{todayVisitors.length}</p>
+                <p className="text-xs text-gray-500">уникальных визитов</p>
               </div>
             </div>
           </motion.div>
@@ -124,53 +212,103 @@ const RoomOverview: React.FC = () => {
         {/* Залы */}
         <motion.div variants={itemVariants} className="card">
           <div className="p-4 bg-primary-500 text-white">
-            <h2 className="text-xl font-semibold">Состояние залов</h2>
+            <h2 className="text-xl font-semibold flex items-center">
+              <Building2 size={20} className="mr-2" />
+              Состояние залов
+            </h2>
           </div>
           <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {rooms.map((room) => (
-                <div key={room.id} className="border rounded-lg p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {roomsWithOccupancy.map((hall) => (
+                <div
+                  key={hall.id}
+                  className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                >
                   <div className="flex justify-between items-start mb-3">
-                    <h3 className="font-medium text-gray-900">{room.name}</h3>
+                    <div>
+                      <h3 className="font-medium text-gray-900">
+                        {hall.hall_name}
+                      </h3>
+                      {hall.specialization && (
+                        <p className="text-sm text-gray-600">
+                          {hall.specialization}
+                        </p>
+                      )}
+                    </div>
                     <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        room.currentOccupancy / room.capacity > 0.8
+                      className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ${
+                        hall.currentOccupancy / hall.total_seats > 0.8
                           ? "bg-red-100 text-red-800"
-                          : room.currentOccupancy / room.capacity > 0.6
+                          : hall.currentOccupancy / hall.total_seats > 0.6
                             ? "bg-yellow-100 text-yellow-800"
                             : "bg-green-100 text-green-800"
                       }`}
                     >
                       {Math.round(
-                        (room.currentOccupancy / room.capacity) * 100,
+                        (hall.currentOccupancy / hall.total_seats) * 100,
                       )}
-                      % загружен
+                      %
                     </span>
                   </div>
                   <div className="mb-2">
                     <div className="flex justify-between text-sm text-gray-600 mb-1">
                       <span>
-                        {room.currentOccupancy} из {room.capacity}
+                        {hall.currentOccupancy} из {hall.total_seats}
                       </span>
                       <span>
-                        {room.capacity - room.currentOccupancy} свободных
+                        {hall.total_seats - hall.currentOccupancy} свободных
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
                         className={`h-2 rounded-full transition-all duration-300 ${
-                          room.currentOccupancy / room.capacity > 0.8
+                          hall.currentOccupancy / hall.total_seats > 0.8
                             ? "bg-red-500"
-                            : room.currentOccupancy / room.capacity > 0.6
+                            : hall.currentOccupancy / hall.total_seats > 0.6
                               ? "bg-yellow-500"
                               : "bg-green-500"
                         }`}
                         style={{
-                          width: `${(room.currentOccupancy / room.capacity) * 100}%`,
+                          width: `${Math.min((hall.currentOccupancy / hall.total_seats) * 100, 100)}%`,
                         }}
                       ></div>
                     </div>
                   </div>
+
+                  {/* Список текущих посетителей зала */}
+                  {hall.currentOccupancy > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <p className="text-xs text-gray-500 mb-2">
+                        Сейчас в зале:
+                      </p>
+                      <div className="space-y-1 max-h-20 overflow-y-auto">
+                        {todayVisitors
+                          .filter(
+                            (v) => v.hallId === hall.id && v.status === "in",
+                          )
+                          .slice(0, 3)
+                          .map((visitor) => (
+                            <div
+                              key={`${visitor.readerId}-${hall.id}`}
+                              className="text-xs text-gray-700"
+                            >
+                              {visitor.readerName}
+                            </div>
+                          ))}
+                        {todayVisitors.filter(
+                          (v) => v.hallId === hall.id && v.status === "in",
+                        ).length > 3 && (
+                          <div className="text-xs text-gray-500">
+                            и еще{" "}
+                            {todayVisitors.filter(
+                              (v) => v.hallId === hall.id && v.status === "in",
+                            ).length - 3}
+                            ...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -181,7 +319,8 @@ const RoomOverview: React.FC = () => {
           {/* Минималистичный график посещений */}
           <motion.div variants={itemVariants} className="card">
             <div className="p-4 bg-accent-500 text-white">
-              <h2 className="text-xl font-semibold">
+              <h2 className="text-xl font-semibold flex items-center">
+                <BarChart3 size={20} className="mr-2" />
                 График посещений сегодня
               </h2>
             </div>
@@ -196,7 +335,7 @@ const RoomOverview: React.FC = () => {
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{
-                          width: `${(stat.visitors / maxVisitors) * 100}%`,
+                          width: `${maxVisitors > 0 ? (stat.visitors / maxVisitors) * 100 : 0}%`,
                         }}
                         transition={{
                           duration: 0.8,
@@ -228,42 +367,46 @@ const RoomOverview: React.FC = () => {
           {/* Список посетителей */}
           <motion.div variants={itemVariants} className="card">
             <div className="p-4 bg-green-500 text-white">
-              <h2 className="text-xl font-semibold">Посетители сегодня</h2>
+              <h2 className="text-xl font-semibold flex items-center">
+                <Users size={20} className="mr-2" />
+                Посетители сегодня
+              </h2>
             </div>
             <div className="p-4 max-h-96 overflow-y-auto">
               {todayVisitors.length > 0 ? (
                 <div className="space-y-2">
-                  {todayVisitors.map((visitor) => {
-                    const member = members.find(
-                      (m) => m.id === visitor.memberId,
-                    );
-                    return (
-                      <div
-                        key={visitor.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-200"
-                      >
-                        <div className="flex items-center min-w-0 flex-1">
-                          <div
-                            className={`p-1.5 rounded-full flex-shrink-0 ${
-                              visitor.status === "in"
-                                ? "bg-green-100 text-green-600"
-                                : "bg-gray-100 text-gray-600"
-                            }`}
+                  {todayVisitors.map((visitor) => (
+                    <div
+                      key={`${visitor.readerId}-${visitor.hallId}-${visitor.entryTime.getTime()}`}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-200"
+                    >
+                      <div className="flex items-center min-w-0 flex-1">
+                        <div
+                          className={`p-1.5 rounded-full flex-shrink-0 ${
+                            visitor.status === "in"
+                              ? "bg-green-100 text-green-600"
+                              : "bg-gray-100 text-gray-600"
+                          }`}
+                        >
+                          {visitor.status === "in" ? (
+                            <DoorOpen size={14} />
+                          ) : (
+                            <DoorClosed size={14} />
+                          )}
+                        </div>
+                        <div className="ml-3 min-w-0 flex-1">
+                          <Link
+                            to={`/readers/${visitor.readerId}`}
+                            className="font-medium text-gray-900 hover:text-primary-600 transition-colors duration-200 block truncate"
                           >
-                            {visitor.status === "in" ? (
-                              <DoorOpen size={14} />
-                            ) : (
-                              <DoorClosed size={14} />
-                            )}
-                          </div>
-                          <div className="ml-3 min-w-0 flex-1">
-                            <Link
-                              to={`/members/${visitor.memberId}`}
-                              className="font-medium text-gray-900 hover:text-primary-600 transition-colors duration-200 block truncate"
-                            >
-                              {visitor.memberName}
-                            </Link>
-                            <div className="text-xs text-gray-600">
+                            {visitor.readerName}
+                          </Link>
+                          <div className="text-xs text-gray-600">
+                            <div className="flex flex-wrap gap-2">
+                              <span>Билет: {visitor.ticketNumber}</span>
+                              <span>Зал: {visitor.hallName}</span>
+                            </div>
+                            <div className="mt-1">
                               <span className="inline-block">
                                 Вход:{" "}
                                 {visitor.entryTime.toLocaleTimeString("ru-RU", {
@@ -283,18 +426,18 @@ const RoomOverview: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ml-2 ${
-                            visitor.status === "in"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {visitor.status === "in" ? "В зале" : "Покинул(а)"}
-                        </span>
                       </div>
-                    );
-                  })}
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ml-2 ${
+                          visitor.status === "in"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {visitor.status === "in" ? "В зале" : "Покинул(а)"}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <p className="text-gray-500 text-center py-8">

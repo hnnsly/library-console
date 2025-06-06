@@ -1,53 +1,31 @@
 -- name: CreateUser :one
 INSERT INTO users (username, email, password_hash, role)
 VALUES (@username, @email, @password_hash, @role)
-RETURNING *;
-
--- name: GetUserByID :one
-SELECT * FROM users
-WHERE id = @user_id AND is_active = true;
+RETURNING id, username, email, role, is_active, created_at;
 
 -- name: GetUserByUsername :one
-SELECT * FROM users
-WHERE username = @username AND is_active = true;
+SELECT id, username, email, password_hash, role, is_active
+FROM users
+WHERE username = @username;
 
--- name: GetUserByEmail :one
-SELECT * FROM users
-WHERE email = @email AND is_active = true;
+-- name: GetUserById :one
+SELECT id, username, email, role, is_active, created_at
+FROM users
+WHERE id = @id;
 
 -- name: UpdateUser :one
 UPDATE users
-SET
-    username = COALESCE(@username, username),
-    email = COALESCE(@email, email),
-    role = COALESCE(@role, role),
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = @user_id
-RETURNING *;
-
--- name: UpdateUserPassword :exec
-UPDATE users
-SET password_hash = @password_hash, updated_at = CURRENT_TIMESTAMP
-WHERE id = @user_id;
+SET email = @email, role = @role
+WHERE id = @id
+RETURNING id, username, email, role, is_active;
 
 -- name: DeactivateUser :exec
 UPDATE users
-SET is_active = false, updated_at = CURRENT_TIMESTAMP
-WHERE id = @user_id;
+SET is_active = false
+WHERE id = @id;
 
--- name: ListUsers :many
-SELECT * FROM users
+-- name: GetAllUsers :many
+SELECT id, username, email, role, is_active, created_at
+FROM users
 WHERE is_active = true
-ORDER BY created_at DESC
-LIMIT @limit_val OFFSET @offset_val;
-
--- name: ListUsersByRole :many
-SELECT * FROM users
-WHERE role = @role AND is_active = true
-ORDER BY created_at DESC;
-
--- name: CountUsers :one
-SELECT COUNT(*) FROM users WHERE is_active = true;
-
--- name: CountUsersByRole :one
-SELECT COUNT(*) FROM users WHERE role = @role AND is_active = true;
+ORDER BY username;

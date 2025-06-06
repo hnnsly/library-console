@@ -9,8 +9,8 @@ import Layout from "./components/layout/Layout";
 import Dashboard from "./pages/Dashboard";
 import Books from "./pages/Books";
 import BookDetails from "./pages/BookDetails";
-import Members from "./pages/Members";
-import MemberDetails from "./pages/MemberDetails";
+import Readers from "./pages/Readers";
+import ReaderDetails from "./pages/ReaderDetails";
 import Checkout from "./pages/Checkout";
 import Returns from "./pages/Returns";
 import Settings from "./pages/Settings";
@@ -26,8 +26,8 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="books" element={<Books />} />
           <Route path="books/:id" element={<BookDetails />} />
-          <Route path="members" element={<Members />} />
-          <Route path="members/:id" element={<MemberDetails />} />
+          <Route path="readers" element={<Readers />} />
+          <Route path="readers/:id" element={<ReaderDetails />} />
           <Route path="checkout" element={<Checkout />} />
           <Route path="returns" element={<Returns />} />
           <Route path="/room-entry" element={<RoomEntry />} />

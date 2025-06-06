@@ -1,45 +1,34 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { BookOpen, Users, Clock, AlertCircle } from "lucide-react";
-import { books, members, checkoutRecords } from "../data/mockData";
+import { BookOpen, Users, Clock, AlertCircle, Building2 } from "lucide-react";
+import {
+  dashboardStats,
+  bookIssues,
+  readers,
+  booksWithDetails,
+  bookCopies,
+  readingHalls,
+} from "../data/mockData";
 
 const Dashboard: React.FC = () => {
-  // Calculate statistics
-  const totalBooks = books.length;
-  const availableBooks = books.filter(
-    (book) => book.status === "available",
-  ).length;
-  const totalMembers = members.length;
-  const activeMembers = members.filter(
-    (member) => member.membershipStatus === "active",
-  ).length;
-
-  const activeCheckouts = checkoutRecords.filter(
-    (record) => record.status === "active",
-  ).length;
-  const overdueBooks = checkoutRecords.filter(
-    (record) =>
-      record.status === "active" && new Date(record.dueDate) < new Date(),
-  ).length;
-
   // Books due this week
   const today = new Date();
   const endOfWeek = new Date(today);
   endOfWeek.setDate(today.getDate() + 7);
 
-  const booksDueThisWeek = checkoutRecords.filter(
-    (record) =>
-      record.status === "active" &&
-      new Date(record.dueDate) >= today &&
-      new Date(record.dueDate) <= endOfWeek,
+  const issuesDueThisWeek = bookIssues.filter(
+    (issue) =>
+      !issue.return_date &&
+      new Date(issue.due_date) >= today &&
+      new Date(issue.due_date) <= endOfWeek,
   );
 
-  // Recent activities - using checkout records
-  const recentActivities = checkoutRecords
+  // Recent activities - using book issues
+  const recentActivities = bookIssues
     .sort((a, b) => {
-      const dateA = a.returnedDate || a.checkoutDate;
-      const dateB = b.returnedDate || b.checkoutDate;
+      const dateA = a.return_date || a.issue_date;
+      const dateB = b.return_date || b.issue_date;
       return new Date(dateB).getTime() - new Date(dateA).getTime();
     })
     .slice(0, 5);
@@ -89,12 +78,18 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="ml-4">
               <h3 className="text-lg font-medium text-gray-700">Всего книг</h3>
-              <p className="text-2xl font-semibold">{totalBooks}</p>
+              <p className="text-2xl font-semibold">
+                {dashboardStats.total_books}
+              </p>
             </div>
           </div>
           <div className="mt-3 text-sm">
             <span className="text-green-600 font-medium">
-              {availableBooks} доступно
+              {booksWithDetails.reduce(
+                (sum, book) => sum + book.available_copies,
+                0,
+              )}{" "}
+              доступно
             </span>
           </div>
         </motion.div>
@@ -106,12 +101,14 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="ml-4">
               <h3 className="text-lg font-medium text-gray-700">Читатели</h3>
-              <p className="text-2xl font-semibold">{totalMembers}</p>
+              <p className="text-2xl font-semibold">
+                {dashboardStats.total_readers}
+              </p>
             </div>
           </div>
           <div className="mt-3 text-sm">
             <span className="text-green-600 font-medium">
-              {activeMembers} активных
+              {readers.filter((r) => r.is_active).length} активных
             </span>
           </div>
         </motion.div>
@@ -122,8 +119,10 @@ const Dashboard: React.FC = () => {
               <BookOpen size={24} />
             </div>
             <div className="ml-4">
-              <h3 className="text-lg font-medium text-gray-700">На руках</h3>
-              <p className="text-2xl font-semibold">{activeCheckouts}</p>
+              <h3 className="text-lg font-medium text-gray-700">Выдано</h3>
+              <p className="text-2xl font-semibold">
+                {dashboardStats.active_issues}
+              </p>
             </div>
           </div>
           <div className="mt-3 text-sm">
@@ -131,7 +130,7 @@ const Dashboard: React.FC = () => {
               to="/checkout"
               className="text-primary-500 hover:underline font-medium"
             >
-              Подробнее
+              Новая выдача
             </Link>
           </div>
         </motion.div>
@@ -143,7 +142,9 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="ml-4">
               <h3 className="text-lg font-medium text-gray-700">Просрочено</h3>
-              <p className="text-2xl font-semibold">{overdueBooks}</p>
+              <p className="text-2xl font-semibold">
+                {dashboardStats.overdue_issues}
+              </p>
             </div>
           </div>
           <div className="mt-3 text-sm">
@@ -152,6 +153,73 @@ const Dashboard: React.FC = () => {
               className="text-primary-500 hover:underline font-medium"
             >
               Обработать возврат
+            </Link>
+          </div>
+        </motion.div>
+      </motion.div>
+
+      {/* Second Row Stats - Reading Halls */}
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8"
+      >
+        <motion.div variants={itemVariants} className="card p-6">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-purple-100 text-purple-600">
+              <Building2 size={24} />
+            </div>
+            <div className="ml-4">
+              <h3 className="text-lg font-medium text-gray-700">
+                Читальные залы
+              </h3>
+              <p className="text-2xl font-semibold">{readingHalls.length}</p>
+            </div>
+          </div>
+          <div className="mt-3 text-sm">
+            <span className="text-blue-600 font-medium">
+              {readingHalls.reduce((sum, hall) => sum + hall.total_seats, 0)}{" "}
+              мест
+            </span>
+          </div>
+        </motion.div>
+
+        <motion.div variants={itemVariants} className="card p-6">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-blue-100 text-blue-600">
+              <Users size={24} />
+            </div>
+            <div className="ml-4">
+              <h3 className="text-lg font-medium text-gray-700">Посетители</h3>
+              <p className="text-2xl font-semibold">
+                {dashboardStats.current_hall_visitors}
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 text-sm">
+            <span className="text-green-600 font-medium">сейчас в залах</span>
+          </div>
+        </motion.div>
+
+        <motion.div variants={itemVariants} className="card p-6">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-yellow-100 text-yellow-600">
+              <AlertCircle size={24} />
+            </div>
+            <div className="ml-4">
+              <h3 className="text-lg font-medium text-gray-700">Штрафы</h3>
+              <p className="text-2xl font-semibold">
+                {dashboardStats.total_fines.toFixed(0)} ₽
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 text-sm">
+            <Link
+              to="/fines"
+              className="text-primary-500 hover:underline font-medium"
+            >
+              Управление штрафами
             </Link>
           </div>
         </motion.div>
@@ -169,13 +237,16 @@ const Dashboard: React.FC = () => {
             </h2>
           </div>
           <div className="p-4">
-            {booksDueThisWeek.length > 0 ? (
+            {issuesDueThisWeek.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead>
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Книга
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Экземпляр
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Читатель
@@ -186,26 +257,45 @@ const Dashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {booksDueThisWeek.map((record) => {
-                      const book = books.find((b) => b.id === record.bookId);
-                      const member = members.find(
-                        (m) => m.id === record.memberId,
+                    {issuesDueThisWeek.map((issue) => {
+                      const bookCopy = bookCopies.find(
+                        (copy) => copy.id === issue.book_copy_id,
                       );
+                      const book = booksWithDetails.find(
+                        (b) => b.id === bookCopy?.book_id,
+                      );
+                      const reader = readers.find(
+                        (r) => r.id === issue.reader_id,
+                      );
+
                       return (
-                        <tr key={record.id}>
-                          <td className="px-4 py-3 whitespace-nowrap">
+                        <tr key={issue.id}>
+                          <td className="px-4 py-3">
                             <div className="font-medium text-gray-900">
                               {book?.title}
                             </div>
+                            <div className="text-xs text-gray-500">
+                              {book?.authors
+                                .map((author) => author.full_name)
+                                .join(", ")}
+                            </div>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="text-gray-700">
-                              {member?.firstName} {member?.lastName}
+                            <div className="text-sm text-gray-700">
+                              {bookCopy?.copy_code}
                             </div>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="text-gray-700">
-                              {new Date(record.dueDate).toLocaleDateString(
+                              {reader?.full_name}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {reader?.ticket_number}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="text-gray-700">
+                              {new Date(issue.due_date).toLocaleDateString(
                                 "ru-RU",
                               )}
                             </div>
@@ -232,9 +322,14 @@ const Dashboard: React.FC = () => {
           <div className="p-4">
             <ul className="divide-y divide-gray-200">
               {recentActivities.map((activity) => {
-                const book = books.find((b) => b.id === activity.bookId);
-                const member = members.find((m) => m.id === activity.memberId);
-                const isReturn = activity.returnedDate !== null;
+                const bookCopy = bookCopies.find(
+                  (copy) => copy.id === activity.book_copy_id,
+                );
+                const book = booksWithDetails.find(
+                  (b) => b.id === bookCopy?.book_id,
+                );
+                const reader = readers.find((r) => r.id === activity.reader_id);
+                const isReturn = activity.return_date !== null;
 
                 return (
                   <li key={activity.id} className="py-3">
@@ -248,19 +343,26 @@ const Dashboard: React.FC = () => {
                           <Clock size={16} />
                         )}
                       </div>
-                      <div className="ml-3">
+                      <div className="ml-3 flex-1">
                         <p className="text-sm font-medium text-gray-800">
-                          {member?.firstName} {member?.lastName}{" "}
+                          {reader?.full_name}{" "}
                           {isReturn ? "вернул(а)" : "взял(а)"}
                         </p>
-                        <p className="text-sm text-gray-600">
-                          "{book?.title}"{" "}
-                          {new Date(
-                            isReturn
-                              ? activity.returnedDate!
-                              : activity.checkoutDate,
-                          ).toLocaleDateString("ru-RU")}
+                        <p className="text-sm text-gray-600 line-clamp-1">
+                          "{book?.title}"
                         </p>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-xs text-gray-500">
+                            {bookCopy?.copy_code}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(
+                              isReturn
+                                ? activity.return_date!
+                                : activity.issue_date,
+                            ).toLocaleDateString("ru-RU")}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </li>
@@ -270,6 +372,42 @@ const Dashboard: React.FC = () => {
           </div>
         </motion.div>
       </div>
+
+      {/* Reading Halls Status */}
+      <motion.div variants={itemVariants} className="card mt-6 overflow-hidden">
+        <div className="p-4 bg-purple-500 text-white">
+          <h2 className="text-xl font-semibold">Состояние читальных залов</h2>
+        </div>
+        <div className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {readingHalls.map((hall) => (
+              <div key={hall.id} className="border rounded-lg p-4">
+                <h3 className="font-medium text-gray-900 mb-2">
+                  {hall.hall_name}
+                </h3>
+                {hall.specialization && (
+                  <p className="text-sm text-gray-600 mb-2">
+                    {hall.specialization}
+                  </p>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">
+                    Посетители: {hall.current_visitors}/{hall.total_seats}
+                  </span>
+                  <div className="w-16 bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-500 h-2 rounded-full"
+                      style={{
+                        width: `${Math.min((hall.current_visitors / hall.total_seats) * 100, 100)}%`,
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 };
